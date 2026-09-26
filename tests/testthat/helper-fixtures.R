@@ -53,3 +53,27 @@ fisher_greater <- function(n11, n_a, n_b, n) {
   ct <- matrix(c(n11, n_a - n11, n_b - n11, n - n_a - n_b + n11), 2L, byrow = TRUE)
   stats::fisher.test(ct, alternative = "greater")[["p.value"]]
 }
+
+#' The Julia suite's shared fixture (`make_test_event_df()` in
+#' test/runtests.jl), reduced to the columns these tests read. 50 records:
+#' 30 single-item background records (group B: 8 Item01, 4 Item02, 3 Item03;
+#' group A: 8 GA1, 4 Item05, 3 Item03); 10 Item01 + Item02 (B, planted strong
+#' association); 5 GA1 + Item05 (A); 3 Item01 + GB1 (B); 2 Item03 + Item04
+#' (one in each group). Records are numbered in that order, one id each.
+make_test_event_df <- function() {
+  rec <- function(items, n, group) list(items = items, n = n, group = group)
+  templates <- list(
+    rec("Item01", 8L, "B"), rec("Item02", 4L, "B"), rec("Item03", 3L, "B"),
+    rec("GA1", 8L, "A"), rec("Item05", 4L, "A"), rec("Item03", 3L, "A"),
+    rec(c("Item01", "Item02"), 10L, "B"),
+    rec(c("GA1", "Item05"), 5L, "A"),
+    rec(c("Item01", "GB1"), 3L, "B"),
+    rec(c("Item03", "Item04"), 1L, "A"),
+    rec(c("Item03", "Item04"), 1L, "B")
+  )
+  ev <- events_from_records(templates)
+  ev[["Group"]] <- unlist(lapply(templates, function(t) {
+    rep(t[["group"]], t[["n"]] * length(t[["items"]]))
+  }))
+  ev
+}
