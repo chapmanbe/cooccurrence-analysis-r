@@ -1,0 +1,22 @@
+Package: CooccurrenceAnalysis
+Title: Domain-Neutral Co-Occurrence Analysis
+Version: 0.1.0
+Authors@R: person("Brian", "Chapman", role = c("aut", "cre"))
+Description: Pairwise association statistics between items that co-occur
+    within records, significance-filtered co-occurrence networks (one-sided
+    Fisher exact tests with Benjamini-Hochberg correction), Louvain
+    community detection, per-node network metrics, and their plots. An R
+    port of the Julia 'CooccurrenceAnalysis' package; it carries no domain
+    vocabulary.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    ggplot2,
+    igraph,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

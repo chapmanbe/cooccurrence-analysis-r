@@ -1,0 +1,17 @@
+linters: linters_with_defaults(
+    line_length_linter(100),
+    object_length_linter(40),
+    # Per-file usage checks cannot see functions defined in this package's
+    # other files (or ggplot2's .data pronoun, imported in NAMESPACE) unless
+    # the package is installed; they report every cross-file call. The
+    # package's own tests exercise every call path instead.
+    object_usage_linter = NULL,
+    undesirable_function_linter(fun = c(
+      sapply = "use vapply() with an explicit FUN.VALUE",
+      suppressWarnings = "make the warning impossible, or justify with # nolint",
+      try = "handle the error explicitly",
+      attach = NA,
+      setwd = NA
+    ))
+  )
+encoding: "UTF-8"
