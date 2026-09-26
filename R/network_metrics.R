@@ -73,8 +73,11 @@ modularity_q <- function(adjacency, assignments) {
 #' meets, so its choice among tied candidates is not the smallest label in
 #' general, and no ordering rule reproduces it. On a tie the two can therefore
 #' return different partitions from the same graph. Each such event is
-#' counted in `n_gain_ties`, so a partition mismatch against the reference
-#' can be traced to ties (count > 0) or ruled out as their cause (count 0).
+#' counted in `n_gain_ties`: a count above 0 points to tie-breaking as a
+#' likely cause of a partition mismatch against the reference. A count of 0
+#' does not rule it out: the two implementations sum weights in different
+#' orders, so gains R computes as distinct by a few ulps can be exactly
+#' equal in Julia (or the reverse), and such near-ties escape the count.
 #'
 #' Returns a list: `assignments`, one label per node (node indices, not
 #' renumbered), and `n_gain_ties`, the number of moves at which at least two

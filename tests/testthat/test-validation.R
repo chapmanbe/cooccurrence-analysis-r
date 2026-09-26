@@ -113,9 +113,11 @@ test_that("network_integration", {
   expect_true(all(c("assignments", "modularity", "n_communities") %in%
                     names(result[["communities"]])))
   expect_gt(nrow(result[["metrics"]]), 0L)
-  # The Julia case runs stratify_by_group = true; that half is port step 4.
+  # The Julia case runs stratify_by_group = true -- also the default in both
+  # languages; that half is port step 4, so it raises, explicitly or by default.
   expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5,
                                     stratify_by_group = TRUE), "port step 4")
+  expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5), "port step 4")
 })
 
 test_that("Louvain counts exact-gain ties (R)", {
@@ -124,12 +126,23 @@ test_that("Louvain counts exact-gain ties (R)", {
   # reference may choose differently.
   tri <- matrix(1, 3, 3) - diag(3)
   fit <- CooccurrenceAnalysis:::.louvain(tri, 100L)
-  expect_gte(fit[["n_gain_ties"]], 1L)
-  # Distinct weights: no ties.
-  path <- matrix(0, 3, 3)
-  path[1, 2] <- path[2, 1] <- 1
-  path[2, 3] <- path[3, 2] <- 0.5
-  expect_identical(CooccurrenceAnalysis:::.louvain(path, 100L)[["n_gain_ties"]], 0L)
+  expect_gt(fit[["n_gain_ties"]], 0L)
+  # A 4-cycle with equal weights: node 1's candidates {2} and {4} tie
+  # exactly; R takes the smaller label.
+  cyc <- matrix(0, 4, 4)
+  for (e in list(c(1, 2), c(2, 3), c(3, 4), c(4, 1))) {
+    cyc[e[[1]], e[[2]]] <- cyc[e[[2]], e[[1]]] <- 1
+  }
+  fit <- CooccurrenceAnalysis:::.louvain(cyc, 100L)
+  expect_gt(fit[["n_gain_ties"]], 0L)
+  expect_identical(fit[["assignments"]][[1]], fit[["assignments"]][[2]])
+  # A star whose center, visited first, has three candidates with distinct
+  # gains: several candidates, but no exact tie.
+  star <- matrix(0, 4, 4)
+  star[1, 2] <- star[2, 1] <- 1
+  star[1, 3] <- star[3, 1] <- 0.5
+  star[1, 4] <- star[4, 1] <- 0.25
+  expect_identical(CooccurrenceAnalysis:::.louvain(star, 100L)[["n_gain_ties"]], 0L)
   net <- build_cooccurrence_network(event_df, min_count = 2L, alpha = 0.5)
   expect_true(is.integer(detect_communities(net)[["n_gain_ties"]]))
 })
