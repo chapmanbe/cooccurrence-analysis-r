@@ -120,7 +120,7 @@ test_that("detect_communities: louvain modularity gain matches delta Q (C1, C2, 
     expect_equal(gain - loss, modularity_q(adj, moved) - modularity_q(adj, assign),
                  tolerance = 1e-10)
   }
-  final <- CooccurrenceAnalysis:::.louvain(adj, 100L)
+  final <- CooccurrenceAnalysis:::.louvain(adj, 100L)[["assignments"]]
   expect_true(final[[1]] == final[[2]] && final[[2]] == final[[3]])
   expect_true(final[[4]] == final[[5]] && final[[5]] == final[[6]])
   expect_true(final[[1]] != final[[4]])
@@ -136,13 +136,14 @@ test_that("detect_communities: renumbering, names, and unsupported methods (R)",
   # A one-community partition scores exactly zero (the diagonal/null terms).
   expect_equal(modularity_q(two_triangles(), rep(1L, 6)), 0)
   expect_error(detect_communities(net_from_adjacency(two_triangles()),
-                                  method = "label_propagation"), "method")
+                                  method = "label_propagation"), "not ported")
 })
 
 test_that("communities_from_assignments reproduces a fitted partition (R)", {
   net <- net_from_adjacency(two_triangles())
   comm <- detect_communities(net)
-  expect_identical(communities_from_assignments(net, comm[["assignments"]]), comm)
+  expect_identical(communities_from_assignments(net, comm[["assignments"]]),
+                   comm[setdiff(names(comm), "n_gain_ties")])
   expect_error(communities_from_assignments(net, comm[["assignments"]][-1]), "every vertex")
   bad <- comm[["assignments"]] + 1L
   expect_error(communities_from_assignments(net, bad), "1..K")

@@ -66,15 +66,26 @@ modularity_q <- function(adjacency, assignments) {
 #' aggregation phase: the graphs here are small enough that local moving is
 #' the whole algorithm.
 #'
-#' Candidate communities are considered in ascending label order and a move
-#' requires a strictly larger gain, so exact ties keep the earlier label.
-#' Returns one label per node (labels are node indices, not renumbered).
+#' **Ties diverge from the Julia reference.** When two or more candidate
+#' communities give exactly the same largest positive gain, this port moves
+#' the node to the one with the smallest label. The Julia reference iterates
+#' its candidates as a `Set{Int}`, in hash order, and keeps the first it
+#' meets, so its choice among tied candidates is not the smallest label in
+#' general, and no ordering rule reproduces it. On a tie the two can therefore
+#' return different partitions from the same graph. Each such event is
+#' counted in `n_gain_ties`, so a partition mismatch against the reference
+#' can be traced to ties (count > 0) or ruled out as their cause (count 0).
+#'
+#' Returns a list: `assignments`, one label per node (node indices, not
+#' renumbered), and `n_gain_ties`, the number of moves at which at least two
+#' candidates shared the largest positive gain exactly.
 #' @keywords internal
 .louvain <- function(adjacency, max_iter) {
   n <- nrow(adjacency)
   assignments <- seq_len(n)
+  n_gain_ties <- 0L
   m2 <- sum(adjacency[upper.tri(adjacency)]) * 2
-  if (m2 == 0) return(assignments)
+  if (m2 == 0) return(list(assignments = assignments, n_gain_ties = n_gain_ties))
   strengths <- rowSums(adjacency)
   comm_strength <- strengths
   neighbors <- lapply(seq_len(n), function(v) .neighbors(adjacency, v))
@@ -88,6 +99,7 @@ modularity_q <- function(adjacency, assignments) {
                                comm_strength, m2)
       best <- current
       best_gain <- 0
+      n_best <- 0L
       for (comm in candidates) {
         if (comm == current) next
         net_gain <- .modularity_gain(adjacency, node, comm, assignments, strengths,
@@ -95,8 +107,12 @@ modularity_q <- function(adjacency, assignments) {
         if (net_gain > best_gain) {
           best_gain <- net_gain
           best <- comm
+          n_best <- 1L
+        } else if (n_best > 0L && net_gain == best_gain) {
+          n_best <- n_best + 1L
         }
       }
+      if (n_best > 1L) n_gain_ties <- n_gain_ties + 1L
       if (best != current) {
         comm_strength[[current]] <- comm_strength[[current]] - strengths[[node]]
         comm_strength[[best]] <- comm_strength[[best]] + strengths[[node]]
@@ -106,30 +122,43 @@ modularity_q <- function(adjacency, assignments) {
     }
     if (!improved) break
   }
-  assignments
+  list(assignments = assignments, n_gain_ties = n_gain_ties)
 }
 
 #' Detect communities in a co-occurrence network
 #'
-#' `method = "louvain"` is the only method; anything else raises. Community
+#' `method = "louvain"` is the only method. The Julia reference's
+#' `"label_propagation"` is not ported (it is nondeterministic, and the
+#' analysis never uses it); asking for it, or anything else, raises. Community
 #' labels are renumbered `1..K` in ascending order of their raw label.
 #'
 #' Returns a list: `assignments` (integer, named by item, in `net$items`
 #' order), `communities` (a list named by community label, `"1"`, `"2"`, ...,
 #' each the sorted member items), `modularity` ([modularity_q()] of the
-#' partition), and `n_communities`.
+#' partition), `n_communities`, and `n_gain_ties`, the number of exact-gain
+#' ties met while moving nodes (see the tie note in `.louvain()`: where this
+#' is nonzero, the partition may legitimately differ from the Julia one).
 #' @export
 detect_communities <- function(net, method = "louvain", max_iter = 100L) {
   stopifnot(inherits(net, "cooccurrence_network"))
+  if (identical(method, "label_propagation")) {
+    stop(paste0("method = 'label_propagation' exists in the Julia reference but is not ",
+                "ported to R: it is nondeterministic, and the analysis uses 'louvain'"),
+         call. = FALSE)
+  }
   .check_choice(method, "louvain", "method")
   items <- net[["items"]]
   if (length(items) == 0L) {
     return(list(assignments = stats::setNames(integer(0), character(0)),
-                communities = list(), modularity = 0, n_communities = 0L))
+                communities = list(), modularity = 0, n_communities = 0L,
+                n_gain_ties = 0L))
   }
-  raw <- .louvain(net[["adjacency"]], max_iter)
+  fit <- .louvain(net[["adjacency"]], max_iter)
+  raw <- fit[["assignments"]]
   labels <- sort(unique(raw))
-  communities_from_assignments(net, stats::setNames(match(raw, labels), items))
+  out <- communities_from_assignments(net, stats::setNames(match(raw, labels), items))
+  out[["n_gain_ties"]] <- fit[["n_gain_ties"]]
+  out
 }
 
 #' A community result from a known partition

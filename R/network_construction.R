@@ -28,19 +28,70 @@ phi_coefficient <- function(ct) {
   out
 }
 
+#' Odds ratio `(a d) / (b c)` of a 2x2 table `[a b; c d]`
+#'
+#' With `correction = "haldane"` (the default, as in the Julia reference),
+#' the Haldane-Anscombe correction adds 0.5 to all four cells whenever any
+#' cell is zero, so an empty cell gives a large but finite ratio instead of
+#' `Inf` or `NaN`. `correction = "none"` returns the raw ratio, which may be
+#' `Inf` (empty `b c`) or `NaN` (0/0). Any other correction raises.
+#' @export
+odds_ratio <- function(ct, correction = "haldane") {
+  stopifnot(is.matrix(ct), identical(dim(ct), c(2L, 2L)))
+  .odds_ratio(ct[1L, 1L], ct[1L, 2L], ct[2L, 1L], ct[2L, 2L], correction)
+}
+
+#' Vectorized odds ratio from the four cells, in double precision
+#' @keywords internal
+.odds_ratio <- function(a, b, c, d, correction) {
+  .check_choice(correction, c("haldane", "none"), "correction")
+  a <- as.numeric(a)
+  b <- as.numeric(b)
+  c <- as.numeric(c)
+  d <- as.numeric(d)
+  raw <- (a * d) / (b * c)
+  if (identical(correction, "none")) return(raw)
+  zero <- a == 0 | b == 0 | c == 0 | d == 0
+  raw[zero] <- ((a[zero] + 0.5) * (d[zero] + 0.5)) / ((b[zero] + 0.5) * (c[zero] + 0.5))
+  raw
+}
+
 #' Benjamini-Hochberg adjusted p-values over one family of tests
 #'
 #' The family is exactly the vector passed in: every element is one test
 #' that was performed. Do not pad it with p = 1 for tests that were never
 #' run -- that enlarges the family and inflates every q-value. Raises on
 #' missing or out-of-range p-values rather than letting `p.adjust()` shrink
-#' the family around an `NA`.
+#' the family around an `NA`. An empty family gives an empty result.
 #' @export
 bh_adjust <- function(p) {
   if (!is.numeric(p)) stop("bh_adjust: p must be numeric", call. = FALSE)
   if (anyNA(p)) stop("bh_adjust: p contains NA; every tested pair needs a p-value", call. = FALSE)
   if (any(p < 0 | p > 1)) stop("bh_adjust: p-values must lie in [0, 1]", call. = FALSE)
   stats::p.adjust(p, method = "BH")
+}
+
+#' Validate test / correction / timing options, naming what is not ported
+#'
+#' The Julia reference also offers a chi-square test, Bonferroni and Holm
+#' corrections, and `timing_filter = "concurrent"` / `"sequential"`. The
+#' analysis never uses them (the v2 network fit passes Fisher + BH and the
+#' default timing), so they are not ported; asking for one raises with a
+#' message that says so rather than falling back to a supported option.
+#' @keywords internal
+.check_options <- function(test, correction, timing_filter) {
+  not_ported <- function(arg, value) {
+    stop(sprintf(paste0("%s = '%s' exists in the Julia reference but is not ported to R: ",
+                        "the analysis pipeline never uses it"), arg, value), call. = FALSE)
+  }
+  if (identical(test, "chisq")) not_ported("test", test)
+  if (isTRUE(correction %in% c("bonferroni", "holm"))) not_ported("correction", correction)
+  if (isTRUE(timing_filter %in% c("concurrent", "sequential"))) {
+    not_ported("timing_filter", timing_filter)
+  }
+  .check_choice(test, "fisher", "test")
+  .check_choice(correction, "bh", "correction")
+  .check_choice(timing_filter, "all", "timing_filter")
 }
 
 #' Record-level counts behind every pairwise statistic
@@ -112,17 +163,18 @@ bh_adjust <- function(p) {
 #'
 #' Columns: `item_a`, `item_b`, `observed` (records holding both),
 #' `expected` (`n_a * n_b / N`, rounded to 2 places), `lift` (`observed /
-#' expected`, 4 places), `phi` (4 places), `odds_ratio` (sample odds ratio
-#' `n11 n00 / (n10 n01)`, 4 places; `Inf` when a discordant cell is empty),
+#' expected`, 4 places), `phi` (4 places), `odds_ratio` ([odds_ratio()] with its
+#' default Haldane-Anscombe correction, so always finite; 4 places),
 #' `p_value` (one-sided Fisher exact test for enrichment, unrounded), `n_a`,
 #' `n_b` (records holding each item), and `p_adjusted` (Benjamini-Hochberg
 #' over the rows of this table). `N` is the number of distinct records.
 #'
-#' `test` must be `"fisher"` and `correction` `"bh"`; anything else raises.
+#' `test` must be `"fisher"`, `correction` `"bh"`, and `timing_filter`
+#' `"all"`; the Julia reference's other options are not ported and raise.
 #' @export
-compute_pairwise_associations <- function(event_df, test = "fisher", correction = "bh") {
-  .check_choice(test, "fisher", "test")
-  .check_choice(correction, "bh", "correction")
+compute_pairwise_associations <- function(event_df, test = "fisher", correction = "bh",
+                                          timing_filter = "all") {
+  .check_options(test, correction, timing_filter)
   counts <- .record_counts(event_df)
   .associations_from_counts(counts)
 }
@@ -154,7 +206,7 @@ compute_pairwise_associations <- function(event_df, test = "fisher", correction 
     expected = round_digits(expected, 2L),
     lift = round_digits(n11 / expected, 4L),
     phi = round_digits(.phi(n11, n10, n01, n00), 4L),
-    odds_ratio = round_digits((n11 * n00) / (n10 * n01), 4L),
+    odds_ratio = round_digits(.odds_ratio(n11, n10, n01, n00, "haldane"), 4L),
     p_value = p_value,
     n_a = as.integer(n_a),
     n_b = as.integer(n_b),
@@ -176,10 +228,10 @@ compute_pairwise_associations <- function(event_df, test = "fisher", correction 
 #' vertex item, named), `n_records`, and the parameters that produced it.
 #' @export
 build_cooccurrence_network <- function(event_df, weight_metric = "lift", min_count = 30L,
-                                       alpha = 0.05, test = "fisher", correction = "bh") {
+                                       alpha = 0.05, test = "fisher", correction = "bh",
+                                       timing_filter = "all") {
   .check_choice(weight_metric, c("lift", "phi"), "weight_metric")
-  .check_choice(test, "fisher", "test")
-  .check_choice(correction, "bh", "correction")
+  .check_options(test, correction, timing_filter)
   counts <- .record_counts(event_df)
   edge_data <- .associations_from_counts(counts)
   prevalence <- stats::setNames(counts[["n_item"]], counts[["items"]])

@@ -110,8 +110,10 @@ test_that("a record's duplicate events count once", {
 
 test_that("unsupported tests and corrections raise rather than fall back", {
   ev <- bh_fixture(9L, 30L)
-  expect_error(compute_pairwise_associations(ev, test = "chisq"), "test")
-  expect_error(compute_pairwise_associations(ev, correction = "bonferroni"), "correction")
+  expect_error(compute_pairwise_associations(ev, test = "chisq"), "test = 'chisq'.*not ported")
+  expect_error(compute_pairwise_associations(ev, correction = "bonferroni"),
+               "correction = 'bonferroni'.*not ported")
+  expect_error(compute_pairwise_associations(ev, test = "bogus"), "unsupported test")
   expect_error(build_cooccurrence_network(ev, weight_metric = "jaccard"), "weight_metric")
 })
 
