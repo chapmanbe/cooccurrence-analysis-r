@@ -114,10 +114,10 @@ test_that("network_integration", {
                     names(result[["communities"]])))
   expect_gt(nrow(result[["metrics"]]), 0L)
   # The Julia case runs stratify_by_group = true -- also the default in both
-  # languages; that half is port step 4, so it raises, explicitly or by default.
+  # languages; it needs compare_networks (not ported), so it raises either way.
   expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5,
-                                    stratify_by_group = TRUE), "port step 4")
-  expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5), "port step 4")
+                                    stratify_by_group = TRUE), "compare_networks")
+  expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5), "compare_networks")
 })
 
 test_that("Louvain counts exact-gain ties (R)", {
