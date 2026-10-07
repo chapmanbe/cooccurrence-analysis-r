@@ -93,3 +93,40 @@ make_test_event_df <- function() {
   }))
   ev
 }
+
+#' A `cooccurrence_network` straight from a weight matrix, for graph-level
+#' tests that do not need an event table.
+net_from_adjacency <- function(adj, items = paste0("n", seq_len(nrow(adj)))) {
+  dimnames(adj) <- list(items, items)
+  structure(list(items = items, adjacency = adj, edge_data = data.frame(),
+                 prevalence = stats::setNames(rep(1L, length(items)), items),
+                 n_records = 1L, weight_metric = "lift", min_count = 1L, alpha = 1),
+            class = "cooccurrence_network")
+}
+
+two_triangles <- function() {
+  adj <- matrix(0, 6, 6)
+  for (e in list(c(1, 2), c(2, 3), c(1, 3), c(4, 5), c(5, 6), c(4, 6))) {
+    adj[e[[1]], e[[2]]] <- 1
+    adj[e[[2]], e[[1]]] <- 1
+  }
+  adj[3, 4] <- 0.1
+  adj[4, 3] <- 0.1
+  adj
+}
+
+#' Ring of `n_cliques` complete graphs of `k` nodes, each joined to the next
+#' by one unit edge. Phase-1-only local moving stops at one community per
+#' clique; full Louvain/Leiden aggregates neighbors and scores higher.
+ring_of_cliques <- function(n_cliques, k) {
+  n <- n_cliques * k
+  adj <- matrix(0, n, n)
+  for (c in seq_len(n_cliques) - 1L) {
+    idx <- c * k + seq_len(k)
+    adj[idx, idx] <- 1
+    nxt <- (c + 1L) %% n_cliques * k + 1L
+    adj[c * k + k, nxt] <- adj[nxt, c * k + k] <- 1
+  }
+  diag(adj) <- 0
+  adj
+}

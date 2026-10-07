@@ -1,6 +1,6 @@
 # Spec: delegate to validated R packages
 
-**Status:** draft for review · **Date:** 2026-10-06 · **Scope:** `CooccurrenceAnalysis` (R)
+**Status:** phases 0-2 and R1 implemented · **Date:** 2026-10-06 · **Scope:** `CooccurrenceAnalysis` (R)
 
 ## 1. Why
 
@@ -104,7 +104,7 @@ Changes:
   field existed only to trace mismatches against Julia's tie-breaking, and
   that comparison no longer applies.
 - The rest of the return shape is unchanged: assignments renumbered `1..K` by
-  ascending raw label, `communities` sorted in C-locale order, and `modularity`
+  first appearance in `net$items` order (igraph's raw labels are arbitrary), `communities` sorted in C-locale order, and `modularity`
   computed by `modularity_q()` (not taken from igraph) so it is reported the
   same way for every method.
 - `run_network_pipeline()` and `stratified_network_analysis()` take `seed` and
@@ -231,6 +231,7 @@ Each phase is its own branch and merge. "All tests pass" means
    use structure that is unambiguous by construction, plus the
    aggregation-regression test; CLAUDE.md and README carry the Divergences
    section; and D2 is decided.
+   *R1 done 2026-10-06. Open: R9 (needs D2) and R12 (needs tolerances).*
 
 ## 6. Decisions needed
 

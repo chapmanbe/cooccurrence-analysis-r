@@ -33,7 +33,7 @@ excl <- list(A = "OnlyA")
 
 test_that("stratified_network_analysis: named by group, in sorted order (R)", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L)
+  res <- stratified_network_analysis(seed = 1L, ev, exclusive_items = excl, min_count = 1L)
   expect_identical(names(res), c("A", "B"))
   for (g in names(res)) {
     expect_named(res[[g]], c("network", "communities", "metrics", "excluded_items",
@@ -44,12 +44,12 @@ test_that("stratified_network_analysis: named by group, in sorted order (R)", {
 
 test_that("each stratum records what the exclusion removed from it (R)", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L)
+  res <- stratified_network_analysis(seed = 1L, ev, exclusive_items = excl, min_count = 1L)
   expect_identical(res[["B"]][["excluded_items"]], "OnlyA")
   expect_identical(res[["B"]][["n_excluded_events"]], 2L)
   expect_identical(res[["A"]][["excluded_items"]], character(0))
   expect_identical(res[["A"]][["n_excluded_events"]], 0L)
-  none <- stratified_network_analysis(ev, exclusive_items = NULL, min_count = 1L)
+  none <- stratified_network_analysis(seed = 1L, ev, exclusive_items = NULL, min_count = 1L)
   expect_identical(none[["B"]][["excluded_items"]], character(0))
   expect_identical(none[["B"]][["n_excluded_events"]], 0L)
 })
@@ -57,25 +57,26 @@ test_that("each stratum records what the exclusion removed from it (R)", {
 test_that("stratified_network_analysis: order is C-locale byte order (R)", {
   ev <- exclusion_fixture()
   ev[["Group"]] <- ifelse(ev[["Group"]] == "A", "b", "B")
-  res <- stratified_network_analysis(ev, exclusive_items = list(b = "OnlyA"), min_count = 1L)
+  res <- stratified_network_analysis(ev, exclusive_items = list(b = "OnlyA"), min_count = 1L,
+                                     seed = 1L)
   expect_identical(names(res), c("B", "b"))
 })
 
 test_that("exclusive_items has no default: forgetting it errors (R)", {
   ev <- exclusion_fixture()
-  expect_error(stratified_network_analysis(ev, min_count = 1L), "exclusive_items")
+  expect_error(stratified_network_analysis(seed = 1L, ev, min_count = 1L), "exclusive_items")
 })
 
 test_that("exclusive_items = NULL is the explicit 'no exclusion' (R)", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = NULL, min_count = 1L)
+  res <- stratified_network_analysis(seed = 1L, ev, exclusive_items = NULL, min_count = 1L)
   expect_true("OnlyA" %in% res[["B"]][["network"]][["edge_data"]][["item_a"]])
   expect_identical(res[["B"]][["network"]][["n_records"]], 36L)
 })
 
 test_that("each stratum is the network of that group's events, exclusions removed", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L,
+  res <- stratified_network_analysis(seed = 1L, ev, exclusive_items = excl, min_count = 1L,
                                      weight_metric = "phi")
   b_events <- ev[ev[["Group"]] == "B" & ev[["item"]] != "OnlyA", c("id", "item")]
   expect_equal(res[["B"]][["network"]],
@@ -87,7 +88,7 @@ test_that("each stratum is the network of that group's events, exclusions remove
 
 test_that("an excluded item is dropped from the other group, not scored there (R)", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L)
+  res <- stratified_network_analysis(seed = 1L, ev, exclusive_items = excl, min_count = 1L)
   b <- res[["B"]][["network"]]
   expect_false("OnlyA" %in% c(b[["edge_data"]][["item_a"]], b[["edge_data"]][["item_b"]]))
   expect_false("OnlyA" %in% names(b[["prevalence"]]))
@@ -106,8 +107,9 @@ test_that("known answer: X-Y in group B with and without the exclusion (R)", {
     ed <- res[["B"]][["network"]][["edge_data"]]
     ed[ed[["item_a"]] == "X" & ed[["item_b"]] == "Y", , drop = FALSE]
   }
-  with_excl <- row(stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L))
-  without <- row(stratified_network_analysis(ev, exclusive_items = NULL, min_count = 1L))
+  with_excl <- row(stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L,
+                                               seed = 1L))
+  without <- row(stratified_network_analysis(seed = 1L, ev, exclusive_items = NULL, min_count = 1L))
   # Group B: 12 X+Y, 6 X, 6 Y, 10 Z, 1 OnlyA+X, 1 OnlyA. Excluded: N = 35
   # (the OnlyA-only record is gone), n_X = 19, n_Y = 18.
   expect_equal(with_excl[["p_value"]], fisher_greater(12, 19, 18, 35))
@@ -118,45 +120,47 @@ test_that("known answer: X-Y in group B with and without the exclusion (R)", {
 test_that("vocabulary guard: no exclusive item in the data errors (R)", {
   ev <- exclusion_fixture()
   wrong <- list(A = c("Only-A", "onlya"))
-  expect_error(stratified_network_analysis(ev, exclusive_items = wrong, min_count = 1L),
+  expect_error(stratified_network_analysis(seed = 1L, ev, exclusive_items = wrong, min_count = 1L),
                "none of the exclusive_items")
 })
 
 test_that("vocabulary guard: some exclusive items not in the data warns, naming them (R)", {
   ev <- exclusion_fixture()
   partial <- list(A = c("OnlyA", "Ghost"))
-  expect_warning(stratified_network_analysis(ev, exclusive_items = partial, min_count = 1L),
+  expect_warning(stratified_network_analysis(ev, exclusive_items = partial, min_count = 1L,
+                                             seed = 1L),
                  "Ghost")
 })
 
 test_that("exclusive_items keyed by a group that is not in the data errors (R)", {
   ev <- exclusion_fixture()
-  expect_error(stratified_network_analysis(ev, exclusive_items = list(a = "OnlyA"),
+  expect_error(stratified_network_analysis(seed = 1L, ev, exclusive_items = list(a = "OnlyA"),
                                            min_count = 1L),
                "not a value of")
-  expect_error(stratified_network_analysis(ev, exclusive_items = list("OnlyA"),
+  expect_error(stratified_network_analysis(seed = 1L, ev, exclusive_items = list("OnlyA"),
                                            min_count = 1L),
                "named")
 })
 
 test_that("an item listed as exclusive to two groups errors (R)", {
   ev <- exclusion_fixture()
-  expect_error(stratified_network_analysis(ev, exclusive_items = list(A = "X", B = "X"),
+  expect_error(stratified_network_analysis(seed = 1L, ev, exclusive_items = list(A = "X", B = "X"),
                                            min_count = 1L),
                "more than one group")
 })
 
 test_that("a missing or NA group column errors rather than dropping rows (R)", {
   ev <- exclusion_fixture()
-  expect_error(stratified_network_analysis(ev, exclusive_items = excl, group_col = "Sex"),
+  expect_error(stratified_network_analysis(ev, exclusive_items = excl, group_col = "Sex",
+                                           seed = 1L),
                "no 'Sex' column")
   ev[["Group"]][[3L]] <- NA
-  expect_error(stratified_network_analysis(ev, exclusive_items = excl), "NA")
+  expect_error(stratified_network_analysis(seed = 1L, ev, exclusive_items = excl), "NA")
 })
 
 test_that("stratified_network_analysis on the shared fixture", {
   # Julia: FIXTURE_EXCLUSIVE; GA1 occurs only in group A, GB1 only in B.
-  res <- stratified_network_analysis(make_test_event_df(),
+  res <- stratified_network_analysis(seed = 1L, make_test_event_df(),
                                      exclusive_items = list(A = "GA1", B = "GB1"),
                                      min_count = 1L, alpha = 1)
   expect_identical(names(res), c("A", "B"))
@@ -201,7 +205,8 @@ test_that("network stratification over 3 groups", {
     data.frame(id = i, item = rows[[i]][["items"]], Group = rows[[i]][["g"]])
   }))
   excl3 <- list(A = c("A1", "A2"), B = c("B1", "B2"), C = c("C1", "C2"))
-  res <- stratified_network_analysis(ev, exclusive_items = excl3, min_count = 1L, alpha = 1)
+  res <- stratified_network_analysis(ev, exclusive_items = excl3, min_count = 1L, alpha = 1,
+                                     seed = 1L)
   expect_identical(names(res), c("A", "B", "C"))
   for (g in names(res)) expect_s3_class(res[[g]][["network"]], "cooccurrence_network")
   expect_setequal(res[["A"]][["excluded_items"]], c("B1", "B2", "C1", "C2"))
@@ -215,7 +220,8 @@ test_that("run_network_pipeline: stratify_by_group = TRUE still raises (R)", {
 
 test_that("plot_network_comparison takes two named networks (R)", {
   ev <- exclusion_fixture()
-  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L, alpha = 1)
+  res <- stratified_network_analysis(ev, exclusive_items = excl, min_count = 1L, alpha = 1,
+                                     seed = 1L)
   p <- plot_network_comparison(res)
   expect_s3_class(p[["plot"]], "ggplot")
   # Read back from the built plot: panel order and edge colour as drawn.
@@ -241,7 +247,7 @@ two_triangle_stratum <- function() {
                         prevalence = stats::setNames(rep(1L, 6), items), n_records = 1L,
                         weight_metric = "lift", min_count = 1L, alpha = 1),
                    class = "cooccurrence_network")
-  list(network = net, communities = detect_communities(net))
+  list(network = net, communities = detect_communities(net, seed = 1L))
 }
 
 test_that("plot_network_comparison draws as Julia: edge alpha, node colour by community (R)", {

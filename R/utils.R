@@ -44,3 +44,44 @@ round_digits <- function(x, digits) {
 #' Sort character values by byte (C-locale) order, whatever the session locale
 #' @keywords internal
 .sort_c <- function(x) sort(x, method = "radix")
+
+#' Raise unless `seed` is NULL or one whole number `set.seed()` accepts
+#' @keywords internal
+.check_seed <- function(seed, caller) {
+  ok <- is.null(seed) ||
+    (is.numeric(seed) && length(seed) == 1L && is.finite(seed) && seed == round(seed) &&
+       abs(seed) <= .Machine$integer.max)
+  if (!ok) {
+    stop(sprintf(paste0("%s: seed must be NULL or one whole number within the integer range ",
+                        "(NULL draws from the current RNG stream)"), caller), call. = FALSE)
+  }
+  invisible(seed)
+}
+
+#' Evaluate `expr` with the RNG seeded to `seed`, then restore the caller's
+#' stream (or remove `.Random.seed` if the caller had none), so a seeded call
+#' never shifts the caller's later random draws. The generator is pinned to
+#' R's defaults, so the same seed gives the same draws whatever `RNGkind()` the
+#' caller has set. `seed = NULL` evaluates
+#' `expr` on the caller's stream, which it advances.
+#' @keywords internal
+.with_seed <- function(seed, expr) {
+  if (is.null(seed)) return(expr)
+  env <- globalenv()
+  key <- ".Random.seed"
+  had <- exists(key, envir = env, inherits = FALSE)
+  if (had) saved <- get(key, envir = env, inherits = FALSE)
+  on.exit({
+    if (had) {
+      assign(key, saved, envir = env)
+    } else if (exists(key, envir = env, inherits = FALSE)) {
+      rm(list = key, envir = env)
+    }
+  })
+  # Pin the generator too: a seed alone gives different draws under another
+  # RNGkind (L'Ecuyer under parallel, say). Restoring .Random.seed below also
+  # restores the caller's kind, which that vector encodes.
+  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion",
+           sample.kind = "Rejection")
+  expr
+}
