@@ -19,6 +19,7 @@ Imports:
     igraph (>= 2.3.3),
     Matrix,
     methods,
+    parallel,
     stats,
     utils
 Suggests:
