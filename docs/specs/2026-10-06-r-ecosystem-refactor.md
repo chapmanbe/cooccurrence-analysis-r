@@ -231,7 +231,7 @@ Each phase is its own branch and merge. "All tests pass" means
    use structure that is unambiguous by construction, plus the
    aggregation-regression test; CLAUDE.md and README carry the Divergences
    section; and D2 is decided.
-   *R1 done 2026-10-06. Open: R9 (needs D2) and R12 (needs tolerances).*
+   *R1 done 2026-10-06. R12 done 2026-10-07 (`test-hdp-flexmix.R`). R9 closed by D2 = skip.*
 
 ## 6. Decisions needed
 
@@ -244,6 +244,9 @@ Each phase is its own branch and merge. "All tests pass" means
   `flexmix` and document that it is the ML estimator; (c) don't port it, since
   the HDP subsumes it for the analyses that use this package.
   **Recommendation: (c)** unless a consumer needs flat-K output, then (a).
+  **Decided 2026-10-07: (c).** R9 stays a raise. R12's flexmix cross-check found the
+  HDP and a flat K = 3 ML fit agree on well-separated data (ARI 0.975-0.995, identical).
+  Not tested: overlapping components or sparse items, where MAP and ML could differ.
 - **D3: Label propagation.** Port it as an `igraph::cluster_label_prop`
   wrapper with a required seed, or keep the raise. CLAUDE.md records that the
   analysis never uses it. **Recommendation: keep the raise.**
