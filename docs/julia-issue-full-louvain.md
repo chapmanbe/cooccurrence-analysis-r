@@ -1,3 +1,0 @@
-# Louvain stops after phase 1 (no aggregation)
-
-`network_metrics.jl:180` documents "Simple Louvain community detection (phase 1 only — sufficient for small graphs)". Without aggregation, local moving can stall below the modularity optimum. On a ring of 20 triangles (each joined to the next by one unit edge), phase 1 stops at one community per triangle, Q = 0.70; full Louvain or Leiden reaches Q ≈ 0.77. The R port (`cooccurrence-analysis-r`) now uses igraph's Leiden (default) and Louvain and records this as a divergence. Proposal: add the aggregation phase, or call a full implementation, so the two packages agree again on method if not on exact partitions (both algorithms are randomized).
