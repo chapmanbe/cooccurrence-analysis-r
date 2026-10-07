@@ -60,7 +60,9 @@ round_digits <- function(x, digits) {
 
 #' Evaluate `expr` with the RNG seeded to `seed`, then restore the caller's
 #' stream (or remove `.Random.seed` if the caller had none), so a seeded call
-#' never shifts the caller's later random draws. `seed = NULL` evaluates
+#' never shifts the caller's later random draws. The generator is pinned to
+#' R's defaults, so the same seed gives the same draws whatever `RNGkind()` the
+#' caller has set. `seed = NULL` evaluates
 #' `expr` on the caller's stream, which it advances.
 #' @keywords internal
 .with_seed <- function(seed, expr) {
@@ -76,6 +78,10 @@ round_digits <- function(x, digits) {
       rm(list = key, envir = env)
     }
   })
-  set.seed(seed)
+  # Pin the generator too: a seed alone gives different draws under another
+  # RNGkind (L'Ecuyer under parallel, say). Restoring .Random.seed below also
+  # restores the caller's kind, which that vector encodes.
+  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion",
+           sample.kind = "Rejection")
   expr
 }

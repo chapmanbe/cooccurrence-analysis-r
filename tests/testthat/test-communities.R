@@ -30,6 +30,15 @@ test_that("R-only: .with_seed leaves no .Random.seed behind in a fresh session",
   expect_false(exists(key, envir = globalenv(), inherits = FALSE))
 })
 
+test_that("R-only: .with_seed depends on the seed alone, not the caller's RNG kind", {
+  default <- .with_seed(1L, stats::runif(3))
+  old <- RNGkind("L'Ecuyer-CMRG")
+  on.exit(RNGkind(old[[1L]], old[[2L]], old[[3L]]))
+  expect_identical(.with_seed(1L, stats::runif(3)), default)
+  # The caller's own generator is still in force afterward.
+  expect_identical(RNGkind()[[1L]], "L'Ecuyer-CMRG")
+})
+
 test_that("R-only: .check_seed accepts NULL and whole numbers, raises otherwise", {
   expect_silent(.check_seed(NULL, "f"))
   expect_silent(.check_seed(7, "f"))
