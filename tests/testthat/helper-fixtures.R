@@ -54,6 +54,22 @@ fisher_greater <- function(n11, n_a, n_b, n) {
   stats::fisher.test(ct, alternative = "greater")[["p.value"]]
 }
 
+#' Adjusted Rand index of two labelings, written out from the definition
+#' (as the Julia suite's `_test_ari`), independent of the package.
+adjusted_rand <- function(a, b) {
+  tab <- table(a, b)
+  c2 <- function(x) x * (x - 1) / 2
+  sn <- sum(c2(tab))
+  sa <- sum(c2(rowSums(tab)))
+  sb <- sum(c2(colSums(tab)))
+  nc2 <- c2(length(a))
+  if (nc2 == 0) return(1)
+  expected <- sa * sb / nc2
+  denom <- 0.5 * (sa + sb) - expected
+  if (denom == 0) return(1)
+  (sn - expected) / denom
+}
+
 #' The Julia suite's shared fixture (`make_test_event_df()` in
 #' test/runtests.jl), reduced to the columns these tests read. 50 records:
 #' 30 single-item background records (group B: 8 Item01, 4 Item02, 3 Item03;

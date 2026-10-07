@@ -2,4 +2,5 @@
 
 Domain-neutral co-occurrence analysis: pairwise association statistics,
 significance-filtered co-occurrence networks, community detection, network
-metrics, and plots. R port of the Julia `CooccurrenceAnalysis` package.
+metrics, a hierarchical Dirichlet process Bernoulli mixture fit jointly across
+groups (truncated stick-breaking CAVI), and plots. R port of the Julia `CooccurrenceAnalysis` package.

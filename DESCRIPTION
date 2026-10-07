@@ -5,7 +5,9 @@ Authors@R: person("Brian", "Chapman", role = c("aut", "cre"))
 Description: Pairwise association statistics between items that co-occur
     within records, significance-filtered co-occurrence networks (one-sided
     Fisher exact tests with Benjamini-Hochberg correction), Louvain
-    community detection, per-node network metrics, and their plots. An R
+    community detection, per-node network metrics, a hierarchical
+    Dirichlet process Bernoulli mixture fit jointly across groups by
+    coordinate-ascent variational inference, and their plots. An R
     port of the Julia 'CooccurrenceAnalysis' package; it carries no domain
     vocabulary.
 License: MIT + file LICENSE
