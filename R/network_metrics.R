@@ -31,138 +31,68 @@ modularity_q <- function(adjacency, assignments) {
                      weights = igraph::E(g)$weight)
 }
 
-#' Neighbors of vertex `v` (ascending), excluding `v` itself
-#' @keywords internal
-.neighbors <- function(adjacency, v) {
-  nb <- which(adjacency[v, ] != 0)
-  nb[nb != v]
-}
-
-#' Modularity gain from adding `node` to `community`
-#'
-#' `2 k_in / 2m - 2 s_tot k_i / (2m)^2`, with `k_in` the edge weight from
-#' `node` into `community`, `s_tot` the community's total strength excluding
-#' `node` itself, and `k_i` the node's strength; `m2` is `2m`. A move
-#' `current -> target` gains `gain(target) - gain(current)`, which equals the
-#' change in [modularity_q()] exactly (the `k_i^2` self-terms cancel).
-#' `comm_strength[c]` is the maintained total strength of community `c`.
-#' @keywords internal
-.modularity_gain <- function(adjacency, node, community, assignments, strengths,
-                             comm_strength, m2) {
-  nb <- .neighbors(adjacency, node)
-  in_comm <- nb[assignments[nb] == community]
-  k_in <- sum(adjacency[node, in_comm])
-  s_tot <- comm_strength[[community]]
-  if (assignments[[node]] == community) s_tot <- s_tot - strengths[[node]]
-  2 * k_in / m2 - 2 * (s_tot * strengths[[node]]) / (m2 * m2)
-}
-
-#' Louvain community detection, phase 1 (local moving)
-#'
-#' Every node starts in its own community. Nodes are visited in order
-#' `1..n`; each moves to the neighboring community with the largest positive
-#' modularity gain `2 k_in / 2m - 2 s_tot k_i / (2m)^2` (relative to staying,
-#' with the node's own strength excluded from its current community). Sweeps
-#' repeat until a full sweep moves nothing, or `max_iter` sweeps. There is no
-#' aggregation phase: the graphs here are small enough that local moving is
-#' the whole algorithm.
-#'
-#' **Ties diverge from the Julia reference.** When two or more candidate
-#' communities give exactly the same largest positive gain, this port moves
-#' the node to the one with the smallest label. The Julia reference iterates
-#' its candidates as a `Set{Int}`, in hash order, and keeps the first it
-#' meets, so its choice among tied candidates is not the smallest label in
-#' general, and no ordering rule reproduces it. On a tie the two can therefore
-#' return different partitions from the same graph. Each such event is
-#' counted in `n_gain_ties`: a count above 0 points to tie-breaking as a
-#' likely cause of a partition mismatch against the reference. A count of 0
-#' does not rule it out: the two implementations sum weights in different
-#' orders, so gains R computes as distinct by a few ulps can be exactly
-#' equal in Julia (or the reverse), and such near-ties escape the count.
-#'
-#' Returns a list: `assignments`, one label per node (node indices, not
-#' renumbered), and `n_gain_ties`, the number of moves at which at least two
-#' candidates shared the largest positive gain exactly.
-#' @keywords internal
-.louvain <- function(adjacency, max_iter) {
-  n <- nrow(adjacency)
-  assignments <- seq_len(n)
-  n_gain_ties <- 0L
-  m2 <- sum(adjacency[upper.tri(adjacency)]) * 2
-  if (m2 == 0) return(list(assignments = assignments, n_gain_ties = n_gain_ties))
-  strengths <- rowSums(adjacency)
-  comm_strength <- strengths
-  neighbors <- lapply(seq_len(n), function(v) .neighbors(adjacency, v))
-
-  for (iter in seq_len(max_iter)) {
-    improved <- FALSE
-    for (node in seq_len(n)) {
-      current <- assignments[[node]]
-      candidates <- sort(unique(assignments[neighbors[[node]]]))
-      loss <- .modularity_gain(adjacency, node, current, assignments, strengths,
-                               comm_strength, m2)
-      best <- current
-      best_gain <- 0
-      n_best <- 0L
-      for (comm in candidates) {
-        if (comm == current) next
-        net_gain <- .modularity_gain(adjacency, node, comm, assignments, strengths,
-                                     comm_strength, m2) - loss
-        if (net_gain > best_gain) {
-          best_gain <- net_gain
-          best <- comm
-          n_best <- 1L
-        } else if (n_best > 0L && net_gain == best_gain) {
-          n_best <- n_best + 1L
-        }
-      }
-      if (n_best > 1L) n_gain_ties <- n_gain_ties + 1L
-      if (best != current) {
-        comm_strength[[current]] <- comm_strength[[current]] - strengths[[node]]
-        comm_strength[[best]] <- comm_strength[[best]] + strengths[[node]]
-        assignments[[node]] <- best
-        improved <- TRUE
-      }
-    }
-    if (!improved) break
-  }
-  list(assignments = assignments, n_gain_ties = n_gain_ties)
-}
-
 #' Detect communities in a co-occurrence network
 #'
-#' `method = "louvain"` is the only method. The Julia reference's
-#' `"label_propagation"` is not ported (it is nondeterministic, and the
-#' analysis never uses it); asking for it, or anything else, raises. Community
-#' labels are renumbered `1..K` in ascending order of their raw label.
+#' `method = "leiden"` (default) runs [igraph::cluster_leiden()] with the
+#' modularity objective, iterated to convergence; `"louvain"` runs
+#' [igraph::cluster_louvain()]. Both use the edge weights and `resolution`.
+#' Leiden is the default because it guarantees connected communities, which
+#' Louvain does not. The Julia reference's `"label_propagation"` is not
+#' ported; asking for it, or anything else, raises.
+#'
+#' **Divergence from the Julia reference:** Julia runs only Louvain's first
+#' phase (local moving, no aggregation), which can stall below the optimum,
+#' so partitions differ from Julia's by design (CLAUDE.md, "Divergences").
+#'
+#' Both algorithms are randomized. `seed` has no default: pass a whole number
+#' for a reproducible partition (applied locally; the caller's RNG stream is
+#' restored), or `NULL` to draw from the current stream. A graph with no
+#' edges gets one community per vertex without calling igraph.
 #'
 #' Returns a list: `assignments` (integer, named by item, in `net$items`
-#' order), `communities` (a list named by community label, `"1"`, `"2"`, ...,
-#' each the sorted member items), `modularity` ([modularity_q()] of the
-#' partition), `n_communities`, and `n_gain_ties`, the number of exact-gain
-#' ties met while moving nodes (see the tie note in `.louvain()`: where this
-#' is nonzero, the partition may legitimately differ from the Julia one).
+#' order, labels `1..K` numbered by first appearance), `communities` (a list
+#' named `"1"`, `"2"`, ..., each the sorted member items), `modularity`
+#' ([modularity_q()] of the partition), and `n_communities`.
 #' @export
-detect_communities <- function(net, method = "louvain", max_iter = 100L) {
+detect_communities <- function(net, method = "leiden", seed, resolution = 1) {
   stopifnot(inherits(net, "cooccurrence_network"))
   if (identical(method, "label_propagation")) {
     stop(paste0("method = 'label_propagation' exists in the Julia reference but is not ",
-                "ported to R: it is nondeterministic, and the analysis uses 'louvain'"),
+                "ported to R: it is nondeterministic, and the analysis uses 'leiden'"),
          call. = FALSE)
   }
-  .check_choice(method, "louvain", "method")
+  .check_choice(method, c("leiden", "louvain"), "method")
+  if (missing(seed)) {
+    stop(paste0("detect_communities: seed is required: pass a whole number for a ",
+                "reproducible partition, or NULL to draw from the current RNG stream"),
+         call. = FALSE)
+  }
+  .check_seed(seed, "detect_communities")
+  if (!(is.numeric(resolution) && length(resolution) == 1L && is.finite(resolution) &&
+          resolution > 0)) {
+    stop("detect_communities: resolution must be one positive number", call. = FALSE)
+  }
   items <- net[["items"]]
   if (length(items) == 0L) {
     return(list(assignments = stats::setNames(integer(0), character(0)),
-                communities = list(), modularity = 0, n_communities = 0L,
-                n_gain_ties = 0L))
+                communities = list(), modularity = 0, n_communities = 0L))
   }
-  fit <- .louvain(net[["adjacency"]], max_iter)
-  raw <- fit[["assignments"]]
-  labels <- sort(unique(raw))
-  out <- communities_from_assignments(net, stats::setNames(match(raw, labels), items))
-  out[["n_gain_ties"]] <- fit[["n_gain_ties"]]
-  out
+  adj <- net[["adjacency"]]
+  raw <- if (all(adj == 0)) {
+    seq_along(items)
+  } else {
+    g <- igraph::graph_from_adjacency_matrix(adj, mode = "undirected", weighted = TRUE,
+                                             diag = FALSE)
+    w <- igraph::E(g)$weight
+    fit <- .with_seed(seed, if (identical(method, "leiden")) {
+      igraph::cluster_leiden(g, objective_function = "modularity", weights = w,
+                             resolution = resolution, n_iterations = -1)
+    } else {
+      igraph::cluster_louvain(g, weights = w, resolution = resolution)
+    })
+    as.integer(igraph::membership(fit))
+  }
+  communities_from_assignments(net, stats::setNames(match(raw, unique(raw)), items))
 }
 
 #' A community result from a known partition

@@ -4,27 +4,6 @@
 
 event_df <- make_test_event_df()
 
-#' A `cooccurrence_network` straight from a weight matrix, for graph-level
-#' tests that do not need an event table.
-net_from_adjacency <- function(adj, items = paste0("n", seq_len(nrow(adj)))) {
-  dimnames(adj) <- list(items, items)
-  structure(list(items = items, adjacency = adj, edge_data = data.frame(),
-                 prevalence = stats::setNames(rep(1L, length(items)), items),
-                 n_records = 1L, weight_metric = "lift", min_count = 1L, alpha = 1),
-            class = "cooccurrence_network")
-}
-
-two_triangles <- function() {
-  adj <- matrix(0, 6, 6)
-  for (e in list(c(1, 2), c(2, 3), c(1, 3), c(4, 5), c(5, 6), c(4, 6))) {
-    adj[e[[1]], e[[2]]] <- 1
-    adj[e[[2]], e[[1]]] <- 1
-  }
-  adj[3, 4] <- 0.1
-  adj[4, 3] <- 0.1
-  adj
-}
-
 test_that("phi_coefficient", {
   expect_equal(phi_coefficient(matrix(c(10, 0, 0, 10), 2, byrow = TRUE)), 1)
   expect_equal(phi_coefficient(matrix(c(5, 5, 5, 5), 2, byrow = TRUE)), 0)
@@ -93,42 +72,19 @@ test_that("cooccurrence_network_from_edge_data rebuilds the same network (R)", {
                                                    "phi", 2L, 0.5), "prevalence")
 })
 
-test_that("detect_communities: louvain", {
+test_that("detect_communities: leiden and louvain", {
   net <- build_cooccurrence_network(event_df, min_count = 2L, alpha = 0.5)
-  comm <- detect_communities(net, method = "louvain")
-  expect_identical(length(comm[["assignments"]]), length(net[["items"]]))
-  expect_gte(comm[["n_communities"]], 1L)
-  expect_true(comm[["modularity"]] >= 0 || comm[["n_communities"]] == 1L)
-  expect_setequal(unlist(comm[["communities"]], use.names = FALSE), net[["items"]])
-})
-
-test_that("detect_communities: louvain modularity gain matches delta Q (C1, C2, T6)", {
-  adj <- two_triangles()
-  strengths <- rowSums(adj)
-  m2 <- sum(strengths)
-  comm_strength <- function(assign) vapply(1:6, function(c) sum(strengths[assign == c]), 0)
-  assign <- 1:6
-  cs <- comm_strength(assign)
-  for (move in list(c(2L, 1L), c(5L, 4L), c(4L, 3L))) {
-    node <- move[[1L]]
-    target <- move[[2L]]
-    gain <- CooccurrenceAnalysis:::.modularity_gain(adj, node, target, assign, strengths, cs, m2)
-    loss <- CooccurrenceAnalysis:::.modularity_gain(adj, node, assign[[node]], assign,
-                                                    strengths, cs, m2)
-    moved <- assign
-    moved[[node]] <- target
-    expect_equal(gain - loss, modularity_q(adj, moved) - modularity_q(adj, assign),
-                 tolerance = 1e-10)
+  for (method in c("leiden", "louvain")) {
+    comm <- detect_communities(net, method = method, seed = 1L)
+    expect_identical(length(comm[["assignments"]]), length(net[["items"]]))
+    expect_gte(comm[["n_communities"]], 1L)
+    expect_true(comm[["modularity"]] >= 0 || comm[["n_communities"]] == 1L)
+    expect_setequal(unlist(comm[["communities"]], use.names = FALSE), net[["items"]])
   }
-  final <- CooccurrenceAnalysis:::.louvain(adj, 100L)[["assignments"]]
-  expect_true(final[[1]] == final[[2]] && final[[2]] == final[[3]])
-  expect_true(final[[4]] == final[[5]] && final[[5]] == final[[6]])
-  expect_true(final[[1]] != final[[4]])
-  expect_gt(modularity_q(adj, final), modularity_q(adj, rep(1L, 6)))
 })
 
 test_that("detect_communities: renumbering, names, and unsupported methods (R)", {
-  comm <- detect_communities(net_from_adjacency(two_triangles()))
+  comm <- detect_communities(net_from_adjacency(two_triangles()), seed = 1L)
   expect_identical(unname(comm[["assignments"]]), c(1L, 1L, 1L, 2L, 2L, 2L))
   expect_identical(names(comm[["assignments"]]), paste0("n", 1:6))
   expect_identical(comm[["communities"]],
@@ -136,14 +92,13 @@ test_that("detect_communities: renumbering, names, and unsupported methods (R)",
   # A one-community partition scores exactly zero (the diagonal/null terms).
   expect_equal(modularity_q(two_triangles(), rep(1L, 6)), 0)
   expect_error(detect_communities(net_from_adjacency(two_triangles()),
-                                  method = "label_propagation"), "not ported")
+                                  method = "label_propagation", seed = 1L), "not ported")
 })
 
 test_that("communities_from_assignments reproduces a fitted partition (R)", {
   net <- net_from_adjacency(two_triangles())
-  comm <- detect_communities(net)
-  expect_identical(communities_from_assignments(net, comm[["assignments"]]),
-                   comm[setdiff(names(comm), "n_gain_ties")])
+  comm <- detect_communities(net, seed = 1L)
+  expect_identical(communities_from_assignments(net, comm[["assignments"]]), comm)
   expect_error(communities_from_assignments(net, comm[["assignments"]][-1]), "every vertex")
   bad <- comm[["assignments"]] + 1L
   expect_error(communities_from_assignments(net, bad), "1..K")
@@ -190,13 +145,13 @@ test_that("round_digits matches the Julia reference on ties (R)", {
 
 test_that("network_visualization: plot_cooccurrence_network", {
   net <- build_cooccurrence_network(event_df, min_count = 2L, alpha = 0.5)
-  comm <- detect_communities(net)
+  comm <- detect_communities(net, seed = 1L)
   expect_s3_class(plot_cooccurrence_network(net, communities = comm), "ggplot")
 })
 
 test_that("network_visualization: plot_community_heatmap", {
   net <- build_cooccurrence_network(event_df, min_count = 2L, alpha = 0.5)
-  comm <- detect_communities(net)
+  comm <- detect_communities(net, seed = 1L)
   expect_s3_class(plot_community_heatmap(net, comm), "ggplot")
 })
 

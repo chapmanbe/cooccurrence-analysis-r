@@ -93,21 +93,25 @@ test_that("modularity_q matches igraph::modularity on weighted graphs", {
   }
 })
 
-test_that("detect_communities recovers planted blocks and is competitive with igraph Louvain", {
+test_that("detect_communities delegates to igraph: same seed, same partition", {
   skip_if_not_installed("igraph")
   pn <- planted_net()
-  ours <- detect_communities(pn$net)
   g <- igraph::graph_from_adjacency_matrix(pn$net$adjacency, mode = "undirected",
                                            weighted = TRUE, diag = FALSE)
-  ref <- igraph::cluster_louvain(g)
-
-  expect_gt(adjusted_rand(unname(ours$assignments), pn$truth), 0.9)
-  expect_gt(adjusted_rand(as.integer(igraph::membership(ref)), pn$truth), 0.9)
-  # Same objective, different tie-breaking: Q must be within a small margin of
-  # igraph's, and the reported Q must be the true Q of the returned partition.
-  expect_gte(ours$modularity, igraph::modularity(ref) - 0.02)
-  expect_equal(ours$modularity,
-               igraph::modularity(g, membership = unname(ours$assignments),
-                                  weights = igraph::E(g)$weight),
-               tolerance = 1e-10)
+  w <- igraph::E(g)$weight
+  canon <- function(m) match(m, unique(m))
+  set.seed(7L)
+  ref_louvain <- igraph::membership(igraph::cluster_louvain(g, weights = w))
+  set.seed(7L)
+  ref_leiden <- igraph::membership(igraph::cluster_leiden(g, objective_function = "modularity",
+                                                          weights = w, n_iterations = -1))
+  louvain <- detect_communities(pn$net, method = "louvain", seed = 7L)
+  leiden <- detect_communities(pn$net, seed = 7L)
+  expect_identical(unname(louvain$assignments), canon(as.integer(ref_louvain)))
+  expect_identical(unname(leiden$assignments), canon(as.integer(ref_leiden)))
+  for (fit in list(louvain, leiden)) {
+    expect_gt(adjusted_rand(unname(fit$assignments), pn$truth), 0.9)
+    expect_equal(fit$modularity, igraph::modularity(g, membership = unname(fit$assignments),
+                                                    weights = w), tolerance = 1e-10)
+  }
 })

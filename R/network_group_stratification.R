@@ -85,15 +85,24 @@
 #' result by name
 #' (`result[["A"]]`), never by position. A missing group column, or `NA` in
 #' it, raises: dropping those rows would shrink every count silently.
+#'
+#' `seed` is passed to [detect_communities()] unchanged for every group, so a
+#' group's partition does not depend on which groups precede it.
 #' @export
 stratified_network_analysis <- function(event_df, exclusive_items, group_col = "Group",
                                         weight_metric = "lift", min_count = 30L,
                                         alpha = 0.05, test = "fisher", correction = "bh",
-                                        community_method = "louvain", timing_filter = "all") {
+                                        community_method = "leiden", timing_filter = "all", seed) {
   if (missing(exclusive_items)) {
     stop(paste0("exclusive_items is required: pass NULL for no exclusion, or a list ",
                 "named by group of the items only that group can hold"), call. = FALSE)
   }
+  if (missing(seed)) {
+    stop(paste0("stratified_network_analysis: seed is required: pass a whole number for ",
+                "reproducible partitions (every group uses it), or NULL to draw from the ",
+                "current RNG stream"), call. = FALSE)
+  }
+  .check_seed(seed, "stratified_network_analysis")
   .check_options(test, correction, timing_filter)
   if (!(group_col %in% names(event_df))) {
     stop(sprintf("event table has no '%s' column (columns: %s)", group_col,
@@ -123,7 +132,7 @@ stratified_network_analysis <- function(event_df, exclusive_items, group_col = "
                                       test = test, correction = correction,
                                       timing_filter = timing_filter)
     list(network = net,
-         communities = detect_communities(net, method = community_method),
+         communities = detect_communities(net, method = community_method, seed = seed),
          metrics = compute_network_metrics(net),
          excluded_items = dropped,
          n_excluded_events = sum(excluded))
