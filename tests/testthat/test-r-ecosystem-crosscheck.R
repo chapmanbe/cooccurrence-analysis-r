@@ -85,7 +85,8 @@ test_that("modularity_q matches igraph::modularity on weighted graphs", {
   g <- igraph::graph_from_adjacency_matrix(pn$net$adjacency, mode = "undirected",
                                            weighted = TRUE, diag = FALSE)
   set.seed(3L)
-  for (labels in list(pn$truth, sample(1:4, length(pn$truth), replace = TRUE), rep(1L, length(pn$truth)))) {
+  n <- length(pn$truth)
+  for (labels in list(pn$truth, sample(1:4, n, replace = TRUE), rep(1L, n))) {
     expect_equal(modularity_q(pn$net$adjacency, labels),
                  igraph::modularity(g, membership = labels, weights = igraph::E(g)$weight),
                  tolerance = 1e-10)

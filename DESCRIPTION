@@ -17,6 +17,7 @@ RoxygenNote: 7.3.2
 Imports:
     ggplot2,
     igraph,
+    Matrix,
     stats,
     utils
 Suggests:

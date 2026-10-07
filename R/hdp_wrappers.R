@@ -41,18 +41,16 @@ record_item_matrix <- function(event_df, group_col = "Group", min_items = 2L) {
 
   items_all <- .sort_c(unique(item_chr))
   code <- match(item_chr, items_all)
-  keep_ev <- !duplicated(as.numeric(rec) * (length(items_all) + 1) + code)
-  size <- tabulate(rec[keep_ev], nbins = length(rec_levels))
-  kept_rec <- which(size >= min_items)
+  inc <- .incidence(rec, code, length(rec_levels), length(items_all))
+  kept_rec <- which(Matrix::rowSums(inc) >= min_items)
   if (length(kept_rec) == 0L) {
     return(list(x = matrix(FALSE, 0L, 0L), ids = ids[0L], group = integer(0),
                 group_labels = group_labels))
   }
-  ev <- keep_ev & (size[rec] >= min_items)
-  items <- .sort_c(unique(item_chr[ev]))
-  row <- match(rec[ev], kept_rec)
-  x <- matrix(FALSE, length(kept_rec), length(items), dimnames = list(NULL, items))
-  x[cbind(row, match(item_chr[ev], items))] <- TRUE
+  inc <- inc[kept_rec, , drop = FALSE]
+  held <- which(Matrix::colSums(inc) > 0)
+  x <- as.matrix(inc[, held, drop = FALSE]) > 0
+  dimnames(x) <- list(NULL, items_all[held])
 
   first_event <- match(kept_rec, rec)
   list(x = x, ids = ids[first_event], group = g[first_event], group_labels = group_labels)
