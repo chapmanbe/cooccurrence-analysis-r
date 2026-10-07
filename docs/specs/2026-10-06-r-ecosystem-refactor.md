@@ -90,7 +90,8 @@ Changes:
   weights = E(g)$weight, resolution = resolution, n_iterations = -1)`.
   igraph's Leiden defaults to the CPM objective and two iterations, so both
   arguments must be set. Leiden is the default because it guarantees
-  connected communities, which Louvain doesn't. `method = "louvain"` calls
+  connected communities, which Louvain can fail to give (Traag, Waltman &
+  van Eck 2019, arXiv:1810.08473; verified 2026-10-07). `method = "louvain"` calls
   `igraph::cluster_louvain(g, weights = E(g)$weight, resolution = resolution)`.
   Any other method still raises. Because the default changes the meaning of
   the old `"louvain"` default, any call that relied on it implicitly now gets

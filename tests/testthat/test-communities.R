@@ -77,7 +77,8 @@ test_that("R-only: disconnected components are separate communities", {
 test_that("R-only: full Leiden/Louvain beat the reference's phase-1 local moving", {
   # 20 triangles in a ring. Phase-1-only local moving (the Julia reference,
   # and this package before the change) stops at Q = 0.70 with one community
-  # per triangle; aggregation reached Q >= 0.77 under every seed in 1..20.
+  # per triangle; aggregation reached Q = 0.770-0.775 under every seed in 1..20. Julia's
+  # `_louvain` was run on this graph: Q = 0.70, 20 communities, any max_iter.
   net <- net_from_adjacency(ring_of_cliques(20L, 3L))
   for (method in c("leiden", "louvain")) {
     for (s in 1:5) {

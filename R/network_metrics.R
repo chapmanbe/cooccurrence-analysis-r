@@ -37,7 +37,7 @@ modularity_q <- function(adjacency, assignments) {
 #' modularity objective, iterated to convergence; `"louvain"` runs
 #' [igraph::cluster_louvain()]. Both use the edge weights and `resolution`.
 #' Leiden is the default because it guarantees connected communities, which
-#' Louvain does not. The Julia reference's `"label_propagation"` is not
+#' Louvain can fail to give (Traag, Waltman & van Eck 2019, Sci Rep 9:5233). The Julia reference's `"label_propagation"` is not
 #' ported; asking for it, or anything else, raises.
 #'
 #' **Divergence from the Julia reference:** Julia runs only Louvain's first
