@@ -16,7 +16,7 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports:
     ggplot2,
-    igraph,
+    igraph (>= 2.3.4),
     Matrix,
     methods,
     stats,
