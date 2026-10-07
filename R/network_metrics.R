@@ -7,27 +7,28 @@
 #' `D_c` the total strength of its nodes. The `(D_c / 2m)^2` term carries the
 #' null-model penalty for every same-community pair, edge or not, and the
 #' diagonal self-terms, so a one-community partition of any graph scores 0.
-#' Returns 0 for an empty or edgeless graph.
+#' Returns 0 for an empty or edgeless graph (igraph returns `NaN` there).
+#' Computed by [igraph::modularity()].
 #'
-#' `adjacency` is a symmetric weight matrix; `assignments` one community
-#' label per row (any integers).
+#' `adjacency` is a symmetric, non-negative weight matrix with a zero
+#' diagonal; anything else raises. `assignments` is one community label per
+#' row (any values).
 #' @export
 modularity_q <- function(adjacency, assignments) {
   n <- nrow(adjacency)
   stopifnot(length(assignments) == n)
   if (n == 0L) return(0)
-  m2 <- sum(adjacency[upper.tri(adjacency)]) * 2
-  if (m2 == 0) return(0)
-  strengths <- rowSums(adjacency)
-  q <- 0
-  for (c in unique(assignments)) {
-    members <- assignments == c
-    d_c <- sum(strengths[members])
-    inner <- adjacency[members, members, drop = FALSE]
-    l_c <- sum(inner[upper.tri(inner)])
-    q <- q + 2 * l_c / m2 - (d_c / m2)^2
+  valid <- !anyNA(adjacency) && isSymmetric(unname(adjacency)) && all(adjacency >= 0) &&
+    all(diag(adjacency) == 0)
+  if (!valid) {
+    stop("modularity_q: adjacency must be symmetric, non-negative, NA-free, with a zero diagonal",
+         call. = FALSE)
   }
-  q
+  if (all(adjacency == 0)) return(0)
+  g <- igraph::graph_from_adjacency_matrix(adjacency, mode = "undirected", weighted = TRUE,
+                                           diag = FALSE)
+  igraph::modularity(g, membership = match(assignments, unique(assignments)),
+                     weights = igraph::E(g)$weight)
 }
 
 #' Neighbors of vertex `v` (ascending), excluding `v` itself

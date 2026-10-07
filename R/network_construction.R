@@ -122,35 +122,14 @@ bh_adjust <- function(p) {
   rec <- match(ids, unique_ids)
   n_records <- length(unique_ids)
 
-  # One row per (record, item): a repeated event counts once.
-  keep <- !duplicated(as.numeric(rec) * (k + 1) + code)
-  rec <- rec[keep]
-  code <- code[keep]
+  inc <- .incidence(rec, code, n_records, k)
+  n_item <- as.integer(Matrix::colSums(inc))
 
-  n_item <- tabulate(code, nbins = k)
-  size <- tabulate(rec, nbins = n_records)
-
-  pair_counts <- matrix(0L, k, k, dimnames = list(items, items))
-  multi <- size[rec] >= 2L
-  if (any(multi)) {
-    rec_m <- rec[multi]
-    code_m <- code[multi]
-    o <- order(rec_m, code_m, method = "radix")
-    rec_m <- rec_m[o]
-    code_m <- code_m[o]
-    sizes <- size[rec_m]
-    # Records with the same number of items form a matrix (one row each,
-    # items ascending); every column pair i < j is one within-record pair.
-    for (s in sort(unique(sizes))) {
-      m <- matrix(code_m[sizes == s], ncol = s, byrow = TRUE)
-      for (i in seq_len(s - 1L)) {
-        for (j in (i + 1L):s) {
-          idx <- (m[, j] - 1L) * k + m[, i]
-          pair_counts <- pair_counts + matrix(tabulate(idx, nbins = k * k), k, k)
-        }
-      }
-    }
-  }
+  # X'X counts the records holding each pair; keep the upper triangle only.
+  pair_counts <- as.matrix(Matrix::crossprod(inc))
+  pair_counts[lower.tri(pair_counts, diag = TRUE)] <- 0
+  storage.mode(pair_counts) <- "integer"
+  dimnames(pair_counts) <- list(items, items)
   list(items = items, n_item = n_item, n_records = n_records, pair_counts = pair_counts)
 }
 

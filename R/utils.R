@@ -29,6 +29,18 @@ round_digits <- function(x, digits) {
   invisible(value)
 }
 
+#' Sparse record-by-item incidence matrix
+#'
+#' `rec` and `code` give each event's record (`1..n_rec`) and item
+#' (`1..n_item`). Returns an `n_rec x n_item` `dgCMatrix` holding 1 where the
+#' record holds the item; an event repeated within a record counts once.
+#' Numeric rather than logical so `crossprod()` returns counts, not a pattern.
+#' @keywords internal
+.incidence <- function(rec, code, n_rec, n_item) {
+  keep <- !duplicated(as.numeric(rec) * (n_item + 1) + code)
+  Matrix::sparseMatrix(i = rec[keep], j = code[keep], x = 1, dims = c(n_rec, n_item))
+}
+
 #' Sort character values by byte (C-locale) order, whatever the session locale
 #' @keywords internal
 .sort_c <- function(x) sort(x, method = "radix")

@@ -205,3 +205,15 @@ test_that("extended_network_visualization: plot_centrality_barchart", {
   metrics <- compute_network_metrics(net)
   expect_s3_class(plot_centrality_barchart(metrics), "ggplot")
 })
+
+test_that("R-only: modularity_q returns 0 when edgeless and raises on invalid adjacency", {
+  # igraph::modularity() returns NaN for an edgeless graph; the package returns 0.
+  expect_identical(modularity_q(matrix(0, 3, 3), 1:3), 0)
+  asym <- matrix(c(0, 1, 0, 0), 2)
+  self_loop <- matrix(c(1, 1, 1, 0), 2)
+  negative <- matrix(c(0, -1, -1, 0), 2)
+  with_na <- matrix(c(0, NA, NA, 0), 2)
+  for (adj in list(asym, self_loop, negative, with_na)) {
+    expect_error(modularity_q(adj, 1:2), "symmetric, non-negative")
+  }
+})

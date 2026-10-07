@@ -84,39 +84,6 @@ hdp_effective_k <- function(beta_mean, threshold = 0.95) {
   if (length(hit) == 0L) length(beta_mean) else hit[[1L]]
 }
 
-# The record-by-item matrix as the positions of its TRUE cells. Records
-# hold a handful of items out of dozens, so the two products CAVI needs
-# every iteration are sums over those cells rather than dense products.
-.sparse_binary <- function(x) {
-  list(rows = lapply(seq_len(ncol(x)), function(d) which(x[, d])), n = nrow(x), d = ncol(x))
-}
-
-# X %*% t(w) for a K x D matrix w: N x K, row i the sum of w's columns at
-# record i's items (zero for a record with none).
-.sx_times <- function(sx, w) {
-  out <- matrix(0, sx[["n"]], nrow(w))
-  for (k in seq_len(nrow(w))) {
-    v <- numeric(sx[["n"]])
-    for (d in seq_len(sx[["d"]])) {
-      rows <- sx[["rows"]][[d]]
-      v[rows] <- v[rows] + w[k, d]
-    }
-    out[, k] <- v
-  }
-  out
-}
-
-# crossprod(r, X) for an N x K matrix r: K x D, column d the sum of r's rows
-# at the records holding item d.
-.sx_crossprod <- function(r, sx) {
-  out <- matrix(0, ncol(r), sx[["d"]])
-  for (d in seq_len(sx[["d"]])) {
-    rows <- sx[["rows"]][[d]]
-    if (length(rows) > 0L) out[, d] <- colSums(r[rows, , drop = FALSE])
-  }
-  out
-}
-
 # Row-wise maximum of a matrix, without apply().
 .row_max <- function(m) {
   out <- m[, 1L]
@@ -129,8 +96,8 @@ hdp_effective_k <- function(beta_mean, threshold = 0.95) {
 .hdp_log_lik <- function(xf, group, theta_alpha, theta_beta, e_log_pi) {
   e_log_th <- digamma(theta_alpha) - digamma(theta_alpha + theta_beta)
   e_log_1m <- digamma(theta_beta) - digamma(theta_alpha + theta_beta)
-  ll <- .sx_times(xf, e_log_th - e_log_1m)
-  ll <- ll + rep(rowSums(e_log_1m), each = xf[["n"]])
+  ll <- as.matrix(Matrix::tcrossprod(xf, e_log_th - e_log_1m))
+  ll <- ll + rep(rowSums(e_log_1m), each = nrow(xf))
   ll + e_log_pi[group, , drop = FALSE]
 }
 
@@ -144,7 +111,7 @@ hdp_effective_k <- function(beta_mean, threshold = 0.95) {
 # Atoms: q(theta_{k,d}) = Beta(alpha_d + sum_i r_ik x_id, beta_d + sum_i r_ik (1 - x_id)).
 .hdp_update_atoms <- function(xf, r, alpha_prior, beta_prior) {
   k <- ncol(r)
-  wx <- .sx_crossprod(r, xf)
+  wx <- as.matrix(Matrix::crossprod(r, xf))
   w1mx <- colSums(r) - wx
   list(alpha = wx + rep(alpha_prior, each = k), beta = w1mx + rep(beta_prior, each = k))
 }
@@ -225,7 +192,7 @@ hdp_effective_k <- function(beta_mean, threshold = 0.95) {
 # uniform draw from R's global stream.
 .run_hdp_cavi <- function(xf, group, n_groups, k_max, alpha, gamma, alpha_prior, beta_prior,
                           max_iter, tol, effective_k_threshold, init = NULL) {
-  n <- xf[["n"]]
+  n <- nrow(xf)
   r <- if (is.null(init)) matrix(stats::runif(n * k_max), n, k_max) else init
   r <- r / rowSums(r)
   atoms <- .hdp_update_atoms(xf, r, alpha_prior, beta_prior)
@@ -370,7 +337,10 @@ fit_hdp_bernoulli_mixture <- function(x, group, n_groups, k_max = 20L, alpha = 1
     b_prior <- rep(beta_prior, d)
   }
 
-  xf <- .sparse_binary(x)
+  # Records hold a handful of items out of dozens, so CAVI's two products
+  # per iteration run on the sparse incidence matrix.
+  cells <- which(x, arr.ind = TRUE)
+  xf <- .incidence(cells[, 1L], cells[, 2L], nrow(x), ncol(x))
   best <- NULL
   best_elbo <- -Inf
   for (i in seq_len(n_init)) {
