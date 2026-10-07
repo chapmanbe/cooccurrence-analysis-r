@@ -6,13 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is ported
 
-Network analysis only, so far: pairwise association statistics, the significance-filtered co-occurrence network, Louvain communities, per-node metrics, group-stratified networks, and their plots. The Julia package's HDP and flat-K Bernoulli mixtures and association rule mining are **not yet ported**. Neither are some network options (chi-square tests, Bonferroni/Holm, timing filters, `label_propagation`, `compare_networks`). Those options raise an error naming the Julia function rather than silently doing something else; keep it that way. A new port adds the function, pairs every Julia testset for it with a testthat test, and only then removes the raise.
+Pairwise association statistics (Fisher or chi-square, with BH, Bonferroni or Holm), the significance-filtered co-occurrence network, Louvain communities, per-node metrics, group-stratified networks, the HDP Bernoulli mixture, frequent itemsets and association rules (enumerated by `arules`), and their plots. **Not yet ported:** the flat-K Bernoulli mixtures (including the Turing MCMC/ADVI fits), timing filters, `label_propagation`, and `compare_networks`. Those raise an error naming the Julia function rather than silently doing something else; keep it that way. A new port adds the function, pairs every Julia testset for it with a testthat test, and only then removes the raise. The refactor plan that delegates to validated R packages is `docs/specs/2026-10-06-r-ecosystem-refactor.md`.
 
 ## Commands
 
 ```bash
 # Dependencies (no renv here; a consuming project pins versions in its own lockfile)
-Rscript -e 'install.packages(c("igraph", "ggplot2", "testthat", "pkgload", "lintr"))'
+Rscript -e 'install.packages(c("igraph", "ggplot2", "testthat", "pkgload", "lintr", "arules"))'
+# Optional cross-check dependency (GitHub-only for current R); its test skips without it
+Rscript -e 'remotes::install_github("griffithdan/cooccur")'
 
 # Tests; the suite builds its own synthetic fixtures, so no data file is needed
 Rscript -e 'testthat::test_local(".")'
@@ -29,7 +31,7 @@ Functions take an **event table**: a data.frame with one row per (record, item) 
 
 ## Architecture
 
-One file per method family in `R/`: `network_construction.R` (2x2 statistics, pairwise tests, network building), `network_metrics.R` (modularity, Louvain, centrality), `network_group_stratification.R` (one network per group), `network_visualization.R` (ggplot2), `pipeline.R` (`run_network_pipeline`), `utils.R`. Statistics return plain data.frames and lists; plots return ggplot objects and never save.
+One file per method family in `R/`: `network_construction.R` (2x2 statistics, pairwise tests, network building), `network_metrics.R` (modularity, Louvain, centrality), `network_group_stratification.R` (one network per group), `network_visualization.R` (ggplot2), `mining.R` (frequent itemsets and rules via `arules`), `pipeline.R` (`run_network_pipeline`), `utils.R`. Statistics return plain data.frames and lists; plots return ggplot objects and never save.
 
 ## Parity rules (each was a real bug)
 
@@ -38,6 +40,13 @@ One file per method family in `R/`: `network_construction.R` (2x2 statistics, pa
 - **`odds_ratio` applies the Haldane correction by default** (+0.5 to all four cells when any cell is zero), as Julia does; the raw ratio is `Inf`.
 - **Louvain tie-breaking differs from Julia**: R tries candidate communities in ascending order, while Julia iterates a hash-ordered `Set`. Exact-gain ties are counted and reported so a partition mismatch can be traced; a zero count does not fully rule out near-ties summed in a different order.
 - **Sort in C-locale byte order** (`.sort_c`); tests pin `LC_COLLATE = "C"`. Group results are named and ordered by group value, never by position.
+
+## Divergences from the Julia reference
+
+Each is a Julia bug the port fixes deliberately; the paired test is marked `R-only`.
+
+- **Chi-square on a zero margin raises.** Julia returns `NaN` for a pair whose item is in every record, and the `NaN` then turns every q-value in the family into `NaN`.
+- **`min_count` in mining is used as a count.** Julia converts it to a fraction and RuleMiner back with `ceil(min_support * n)`, which can land one above it (7 of 100 gives 8).
 
 ## Conventions
 

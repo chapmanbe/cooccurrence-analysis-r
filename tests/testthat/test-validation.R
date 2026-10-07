@@ -48,10 +48,63 @@ test_that("test_association (Fisher: one-sided, significant for the planted pair
   expect_lt(bt[["p_value"]], 0.05)
 })
 
-test_that("test_association with chisq: not ported, raises", {
-  expect_error(compute_pairwise_associations(event_df, test = "chisq"),
-               "test = 'chisq' exists in the Julia reference but is not ported")
-  expect_error(build_cooccurrence_network(event_df, test = "chisq"), "not ported")
+# Expected values below come from running the Julia reference on the same
+# fixture (compute_pairwise_associations / build_cooccurrence_network /
+# adjust_pvalues, CooccurrenceAnalysis.jl at 2026-10-06).
+
+test_that("test_association with chisq (two-sided Pearson, no continuity correction)", {
+  assoc <- compute_pairwise_associations(event_df, test = "chisq")
+  expect_identical(paste(assoc[["item_a"]], assoc[["item_b"]], sep = "|"),
+                   c("GA1|Item05", "GB1|Item01", "Item01|Item02", "Item03|Item04"))
+  expect_equal(assoc[["p_value"]], c(0.025595697769205516, 0.035785546721876872,
+                                     0.0085578871956978522, 0.00094237240515161465),
+               tolerance = 1e-12)
+  expect_equal(assoc[["p_adjusted"]], c(0.034127597025607352, 0.035785546721876872,
+                                        0.017115774391395704, 0.0037694896206064586),
+               tolerance = 1e-12)
+  net <- build_cooccurrence_network(event_df, min_count = 1L, test = "chisq")
+  expect_identical(network_edges(net)[, c("item_a", "item_b")],
+                   data.frame(item_a = c("GA1", "GB1", "Item01", "Item03"),
+                              item_b = c("Item05", "Item01", "Item02", "Item04")))
+})
+
+test_that("R-only: chisq agrees with stats::chisq.test(correct = FALSE)", {
+  # Counts large enough that chisq.test() raises no approximation warning.
+  ev <- events_from_records(list(list(items = c("A", "B"), n = 40L), list(items = "A", n = 20L),
+                                 list(items = "B", n = 15L), list(items = c("C", "D"), n = 30L)))
+  assoc <- compute_pairwise_associations(ev, test = "chisq")
+  ab <- assoc[assoc[["item_a"]] == "A" & assoc[["item_b"]] == "B", ]
+  ct <- matrix(c(40, 15, 20, 30), 2)
+  expect_equal(ab[["p_value"]], stats::chisq.test(ct, correct = FALSE)$p.value, tolerance = 1e-12)
+})
+
+test_that("R-only: chisq raises on a zero margin (Julia returns NaN and poisons the family)", {
+  # U is in every record. Julia gives p = NaN for A-U and B-U, and then
+  # q = NaN for every pair, A-B included.
+  ev <- data.frame(id = c(1, 1, 2, 2, 3, 3, 3, 4, 4),
+                   item = c("U", "A", "U", "B", "U", "A", "B", "U", "A"))
+  expect_error(compute_pairwise_associations(ev, test = "chisq"),
+               "undefined for 2 pair\\(s\\) \\(first: A-U\\).*zero margin")
+  expect_identical(nrow(compute_pairwise_associations(ev)), 3L)
+})
+
+test_that("network with Bonferroni and Holm corrections", {
+  bonf <- compute_pairwise_associations(event_df, correction = "bonferroni")
+  expect_equal(bonf[["p_adjusted"]], c(0.15889372766080384, 0.27142857142857157,
+                                       0.04176181862857771, 0.091428571428571442),
+               tolerance = 1e-12)
+  holm <- compute_pairwise_associations(event_df, correction = "holm")
+  expect_equal(holm[["p_adjusted"]], c(0.07944686383040192, 0.07944686383040192,
+                                       0.04176181862857771, 0.068571428571428589),
+               tolerance = 1e-12)
+  for (corr in c("bonferroni", "holm")) {
+    net <- build_cooccurrence_network(event_df, min_count = 1L, correction = corr)
+    expect_identical(network_edges(net)[, c("item_a", "item_b")],
+                     data.frame(item_a = "Item01", item_b = "Item02"))
+  }
+  piped <- run_network_pipeline(event_df, min_count = 1L, stratify_by_group = FALSE,
+                                correction = "holm")
+  expect_identical(piped[["network"]][["items"]], c("Item01", "Item02"))
 })
 
 test_that("adjust_pvalues", {
@@ -60,6 +113,9 @@ test_that("adjust_pvalues", {
   expect_identical(length(adj), 5L)
   expect_true(all(adj >= pvals))
   expect_identical(bh_adjust(numeric(0)), numeric(0))
+  expect_equal(.adjust_p(pvals, "bonferroni"), c(0.005, 0.05, 0.15, 0.3, 1.0))
+  expect_equal(.adjust_p(pvals, "holm"), c(0.005, 0.04, 0.09, 0.12, 0.5))
+  expect_error(.adjust_p(c(0.1, NaN), "holm"), "contains NA")
 })
 
 test_that("adjust_pvalues on empty input: no co-occurring pairs gives an empty table (R)", {
