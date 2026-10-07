@@ -64,34 +64,53 @@ odds_ratio <- function(ct, correction = "haldane") {
 #' missing or out-of-range p-values rather than letting `p.adjust()` shrink
 #' the family around an `NA`. An empty family gives an empty result.
 #' @export
-bh_adjust <- function(p) {
-  if (!is.numeric(p)) stop("bh_adjust: p must be numeric", call. = FALSE)
-  if (anyNA(p)) stop("bh_adjust: p contains NA; every tested pair needs a p-value", call. = FALSE)
-  if (any(p < 0 | p > 1)) stop("bh_adjust: p-values must lie in [0, 1]", call. = FALSE)
-  stats::p.adjust(p, method = "BH")
+bh_adjust <- function(p) .adjust_p(p, "bh", "bh_adjust")
+
+#' Multiple-testing adjustment by `correction` (`"bh"`, `"bonferroni"`,
+#' `"holm"`) over exactly the family passed in, with [bh_adjust()]'s checks.
+#' @keywords internal
+.adjust_p <- function(p, correction, caller = "p-value adjustment") {
+  if (!is.numeric(p)) stop(sprintf("%s: p must be numeric", caller), call. = FALSE)
+  if (anyNA(p)) {
+    stop(sprintf("%s: p contains NA; every tested pair needs a p-value", caller), call. = FALSE)
+  }
+  if (any(p < 0 | p > 1)) stop(sprintf("%s: p-values must lie in [0, 1]", caller), call. = FALSE)
+  method <- c(bh = "BH", bonferroni = "bonferroni", holm = "holm")[[correction]]
+  stats::p.adjust(p, method = method)
 }
 
 #' Validate test / correction / timing options, naming what is not ported
 #'
-#' The Julia reference also offers a chi-square test, Bonferroni and Holm
-#' corrections, and `timing_filter = "concurrent"` / `"sequential"`. The
-#' analysis never uses them (the v2 network fit passes Fisher + BH and the
-#' default timing), so they are not ported; asking for one raises with a
-#' message that says so rather than falling back to a supported option.
+#' `test` is `"fisher"` or `"chisq"`; `correction` is `"bh"`, `"bonferroni"`
+#' or `"holm"`. The Julia reference also offers `timing_filter =
+#' "concurrent"` / `"sequential"`, which need per-event years and are not
+#' ported; asking for one raises with a message that says so rather than
+#' falling back to a supported option.
 #' @keywords internal
 .check_options <- function(test, correction, timing_filter) {
-  not_ported <- function(arg, value) {
-    stop(sprintf(paste0("%s = '%s' exists in the Julia reference but is not ported to R: ",
-                        "the analysis pipeline never uses it"), arg, value), call. = FALSE)
-  }
-  if (identical(test, "chisq")) not_ported("test", test)
-  if (isTRUE(correction %in% c("bonferroni", "holm"))) not_ported("correction", correction)
   if (isTRUE(timing_filter %in% c("concurrent", "sequential"))) {
-    not_ported("timing_filter", timing_filter)
+    stop(sprintf(paste0("timing_filter = '%s' exists in the Julia reference but is not ported ",
+                        "to R: the analysis pipeline never uses it"), timing_filter),
+         call. = FALSE)
   }
-  .check_choice(test, "fisher", "test")
-  .check_choice(correction, "bh", "correction")
+  .check_choice(test, c("fisher", "chisq"), "test")
+  .check_choice(correction, c("bh", "bonferroni", "holm"), "correction")
   .check_choice(timing_filter, "all", "timing_filter")
+}
+
+#' Raise unless the event table has NA-free `id` and `item` columns
+#' @keywords internal
+.check_events <- function(event_df) {
+  for (col in c("id", "item")) {
+    if (!(col %in% names(event_df))) {
+      stop(sprintf("event table has no '%s' column (columns: %s)", col,
+                   paste(names(event_df), collapse = ", ")), call. = FALSE)
+    }
+    if (anyNA(event_df[[col]])) {
+      stop(sprintf("event table column '%s' contains NA; every event needs one", col),
+           call. = FALSE)
+    }
+  }
 }
 
 #' Record-level counts behind every pairwise statistic
@@ -103,16 +122,7 @@ bh_adjust <- function(p) {
 #' every count.
 #' @keywords internal
 .record_counts <- function(event_df) {
-  for (col in c("id", "item")) {
-    if (!(col %in% names(event_df))) {
-      stop(sprintf("event table has no '%s' column (columns: %s)", col,
-                   paste(names(event_df), collapse = ", ")), call. = FALSE)
-    }
-    if (anyNA(event_df[[col]])) {
-      stop(sprintf("event table column '%s' contains NA; every event needs one", col),
-           call. = FALSE)
-    }
-  }
+  .check_events(event_df)
   item_chr <- as.character(event_df[["item"]])
   items <- .sort_c(unique(item_chr))
   k <- length(items)
@@ -144,22 +154,29 @@ bh_adjust <- function(p) {
 #' `expected` (`n_a * n_b / N`, rounded to 2 places), `lift` (`observed /
 #' expected`, 4 places), `phi` (4 places), `odds_ratio` ([odds_ratio()] with its
 #' default Haldane-Anscombe correction, so always finite; 4 places),
-#' `p_value` (one-sided Fisher exact test for enrichment, unrounded), `n_a`,
-#' `n_b` (records holding each item), and `p_adjusted` (Benjamini-Hochberg
-#' over the rows of this table). `N` is the number of distinct records.
+#' `p_value` (unrounded), `n_a`, `n_b` (records holding each item), and
+#' `p_adjusted` (`correction` over the rows of this table). `N` is the number
+#' of distinct records.
 #'
-#' `test` must be `"fisher"`, `correction` `"bh"`, and `timing_filter`
-#' `"all"`; the Julia reference's other options are not ported and raise.
+#' `test = "fisher"` is the one-sided Fisher exact test for enrichment.
+#' `test = "chisq"` is Pearson's chi-square without continuity correction,
+#' which is **two-sided**, as in the Julia reference: a depleted pair can be
+#' significant under it. The statistic is undefined when an item is in every
+#' record (a zero margin); the Julia reference returns `NaN` there, which
+#' turns every q-value in the family into `NaN`, so this port raises instead.
+#' `correction` is `"bh"` (Benjamini-Hochberg), `"bonferroni"` or `"holm"`.
+#' `timing_filter` must be `"all"`; the Julia reference's other values are
+#' not ported and raise.
 #' @export
 compute_pairwise_associations <- function(event_df, test = "fisher", correction = "bh",
                                           timing_filter = "all") {
   .check_options(test, correction, timing_filter)
   counts <- .record_counts(event_df)
-  .associations_from_counts(counts)
+  .associations_from_counts(counts, test, correction)
 }
 
 #' @keywords internal
-.associations_from_counts <- function(counts) {
+.associations_from_counts <- function(counts, test = "fisher", correction = "bh") {
   items <- counts[["items"]]
   pc <- counts[["pair_counts"]]
   hit <- which(upper.tri(pc) & pc > 0L, arr.ind = TRUE)
@@ -176,7 +193,11 @@ compute_pairwise_associations <- function(event_df, test = "fisher", correction 
   n00 <- n - n_a - n_b + n11
 
   expected <- as.numeric(n_a) * as.numeric(n_b) / n
-  p_value <- stats::phyper(n11 - 1, n_a, n - n_a, n_b, lower.tail = FALSE)
+  p_value <- if (identical(test, "chisq")) {
+    .chisq_p(n11, n_a, n_b, n, items[a], items[b])
+  } else {
+    stats::phyper(n11 - 1, n_a, n - n_a, n_b, lower.tail = FALSE)
+  }
 
   data.frame(
     item_a = items[a],
@@ -189,8 +210,32 @@ compute_pairwise_associations <- function(event_df, test = "fisher", correction 
     p_value = p_value,
     n_a = as.integer(n_a),
     n_b = as.integer(n_b),
-    p_adjusted = bh_adjust(p_value)
+    p_adjusted = .adjust_p(p_value, correction)
   )
+}
+
+#' Pearson chi-square p-value (1 df, no continuity correction) for each 2x2
+#' table, `N (n11 n00 - n10 n01)^2 / (n_a (N - n_a) n_b (N - n_b))`. The same
+#' statistic as `stats::chisq.test(correct = FALSE)`, written out so a small
+#' expected count does not raise chisq.test()'s approximation warning: the
+#' Julia reference's ChisqTest does not warn there either. Raises on a zero
+#' margin, where the statistic is 0/0.
+#' @keywords internal
+.chisq_p <- function(n11, n_a, n_b, n, item_a, item_b) {
+  n_a <- as.numeric(n_a)
+  n_b <- as.numeric(n_b)
+  margins <- n_a * (n - n_a) * n_b * (n - n_b)
+  if (any(margins == 0)) {
+    bad <- which(margins == 0)
+    stop(sprintf(paste0("test = 'chisq' is undefined for %d pair(s) (first: %s-%s): an item ",
+                        "is in every record, a zero margin; use test = 'fisher'"),
+                 length(bad), item_a[[bad[[1L]]]], item_b[[bad[[1L]]]]), call. = FALSE)
+  }
+  n10 <- n_a - n11
+  n01 <- n_b - n11
+  n00 <- n - n_a - n_b + n11
+  stat <- n * (n11 * n00 - n10 * n01)^2 / margins
+  stats::pchisq(stat, df = 1, lower.tail = FALSE)
 }
 
 #' Build a weighted co-occurrence network from an event table
@@ -212,7 +257,7 @@ build_cooccurrence_network <- function(event_df, weight_metric = "lift", min_cou
   .check_choice(weight_metric, c("lift", "phi"), "weight_metric")
   .check_options(test, correction, timing_filter)
   counts <- .record_counts(event_df)
-  edge_data <- .associations_from_counts(counts)
+  edge_data <- .associations_from_counts(counts, test, correction)
   prevalence <- stats::setNames(counts[["n_item"]], counts[["items"]])
   cooccurrence_network_from_edge_data(edge_data, prevalence = prevalence,
                                       n_records = counts[["n_records"]],

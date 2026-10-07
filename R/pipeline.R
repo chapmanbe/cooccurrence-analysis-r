@@ -8,11 +8,12 @@
 #' pipeline rule calls it. So the default here matches Julia's (`TRUE`) and
 #' raises, rather than silently returning a result without the comparisons;
 #' pass `stratify_by_group = FALSE` for the pooled network, and call
-#' [stratified_network_analysis()] for the per-group ones.
+#' [stratified_network_analysis()] for the per-group ones. `test` and
+#' `correction` go to [build_cooccurrence_network()].
 #' @export
 run_network_pipeline <- function(event_df, weight_metric = "lift", min_count = 30L,
                                  alpha = 0.05, community_method = "louvain",
-                                 stratify_by_group = TRUE) {
+                                 stratify_by_group = TRUE, test = "fisher", correction = "bh") {
   if (!identical(stratify_by_group, FALSE)) {
     stop(paste0("stratify_by_group = TRUE needs compare_networks, which exists in the ",
                 "Julia reference but is not ported to R; pass stratify_by_group = FALSE ",
@@ -20,7 +21,8 @@ run_network_pipeline <- function(event_df, weight_metric = "lift", min_count = 3
          call. = FALSE)
   }
   net <- build_cooccurrence_network(event_df, weight_metric = weight_metric,
-                                    min_count = min_count, alpha = alpha)
+                                    min_count = min_count, alpha = alpha, test = test,
+                                    correction = correction)
   list(network = net,
        communities = detect_communities(net, method = community_method),
        metrics = compute_network_metrics(net))

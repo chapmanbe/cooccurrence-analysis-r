@@ -18,9 +18,11 @@ Imports:
     ggplot2,
     igraph,
     Matrix,
+    methods,
     stats,
     utils
 Suggests:
+    arules,
     cooccur,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
