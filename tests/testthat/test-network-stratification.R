@@ -233,6 +233,10 @@ test_that("plot_network_comparison takes two named networks (R)", {
   expect_identical(rev_p[["panels"]][["panel"]], 1:2)
   expect_error(plot_network_comparison(unname(res)), "named")
   expect_error(plot_network_comparison(res["A"]), "two")
+  # R-only: a repeated name once plotted the first stratum twice, and an NA
+  # name slipped past nzchar().
+  expect_error(plot_network_comparison(stats::setNames(res, c("A", "A"))), "unique")
+  expect_error(plot_network_comparison(stats::setNames(res, c("A", NA))), "named")
 })
 
 #' Two triangles joined by one weak edge: Louvain finds two communities.

@@ -142,9 +142,11 @@ plot_centrality_barchart <- function(metrics, centrality = "strength", top_n = 2
 #' a caller records what the figure draws, not what was asked for.
 #' @export
 plot_network_comparison <- function(strata, item_label = "items") {
-  if (!is.list(strata) || is.null(names(strata)) || any(!nzchar(names(strata)))) {
+  if (!is.list(strata) || is.null(names(strata)) || anyNA(names(strata)) ||
+        any(!nzchar(names(strata)))) {
     stop("strata must be a list named by group", call. = FALSE)
   }
+  if (anyDuplicated(names(strata))) stop("strata names must be unique", call. = FALSE)
   if (length(strata) != 2L) {
     stop(sprintf("plot_network_comparison compares two groups; got %d", length(strata)),
          call. = FALSE)

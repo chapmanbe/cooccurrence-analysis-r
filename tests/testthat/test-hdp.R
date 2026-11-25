@@ -373,3 +373,22 @@ test_that("R-only: hdp_clustering with init gives the same fit for character ids
   expect_identical(fit_chr[["hdp"]][["assignments"]], fit[["hdp"]][["assignments"]])
   expect_equal(fit_chr[["hdp"]][["elbo"]], fit[["hdp"]][["elbo"]])
 })
+
+test_that("R-only: hdp_active_clusters raises on a fit of the wrong class", {
+  # A raw fit_hdp_bernoulli_mixture() result once gave integer(0) silently.
+  raw <- structure(list(beta_mean = c(0.6, 0.4)), class = "hdp_bernoulli_result")
+  expect_error(hdp_active_clusters(raw), "hdp_clustering_result")
+})
+
+test_that("R-only: an init with Inf entries raises at validation", {
+  x <- ka_x()
+  expect_error(fit_hdp_bernoulli_mixture(x, ka_group, 2L, k_max = 6L, n_init = 1L,
+                                         init = matrix(Inf, nrow(x), 6L)),
+               "init must be a positive")
+})
+
+test_that("R-only: a restart with an infinite ELBO never wins", {
+  testthat::local_mocked_bindings(.run_hdp_cavi = function(...) list(elbo = Inf))
+  expect_error(fit_hdp_bernoulli_mixture(ka_x(), ka_group, 2L, k_max = 6L, n_init = 2L),
+               "non-finite ELBO")
+})

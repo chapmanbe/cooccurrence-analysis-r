@@ -199,8 +199,8 @@ hdp_best_elbo <- function(elbo, seeds, rel_tol = 1e-9) {
   }
   if (!is.numeric(elbo) || any(!is.finite(elbo))) stop("every ELBO must be finite", call. = FALSE)
   if (anyNA(seeds) || anyDuplicated(seeds)) stop("seeds must be distinct, not NA", call. = FALSE)
-  if (!is.numeric(rel_tol) || length(rel_tol) != 1L || is.na(rel_tol) || rel_tol < 0) {
-    stop("rel_tol must be one non-negative number", call. = FALSE)
+  if (!is.numeric(rel_tol) || length(rel_tol) != 1L || !is.finite(rel_tol) || rel_tol < 0) {
+    stop("rel_tol must be one finite non-negative number", call. = FALSE)
   }
   best <- max(elbo)
   top <- which(elbo >= best - rel_tol * abs(best))
@@ -313,7 +313,13 @@ hdp_cluster_recurrence <- function(fits, reference, active = NULL, categories = 
   if (is.null(names(fits)) || length(fits) < 2L) {
     stop("fits must be a named list of at least two fits", call. = FALSE)
   }
-  ref_i <- if (is.character(reference)) match(reference, names(fits)) else as.integer(reference)
+  ref_i <- if (is.character(reference)) {
+    match(reference, names(fits))
+  } else if (is.numeric(reference) && length(reference) == 1L && isTRUE(.is_seed(reference))) {
+    as.integer(reference)
+  } else {
+    NA_integer_
+  }
   if (length(ref_i) != 1L || is.na(ref_i) || ref_i < 1L || ref_i > length(fits)) {
     stop("reference must name or index one fit in fits", call. = FALSE)
   }

@@ -156,3 +156,7 @@ test_that("R-only: modularity_q raises on NA community labels", {
   # match() once mapped NA to a community of its own and scored that partition.
   expect_error(modularity_q(two_triangles(), c(1, 1, 1, NA, NA, NA)), "NA")
 })
+
+test_that("R-only: modularity_q raises on infinite weights", {
+  expect_error(modularity_q(matrix(c(0, Inf, Inf, 0), 2L), c(1, 2)), "finite")
+})

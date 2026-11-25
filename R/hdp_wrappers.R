@@ -216,5 +216,8 @@ hdp_cluster_categorization <- function(result, presence_threshold = 0.05,
 #' Active clusters: those whose global weight exceeds `beta_threshold`
 #' @export
 hdp_active_clusters <- function(result, beta_threshold = 0.01) {
+  if (!inherits(result, "hdp_clustering_result")) {
+    stop("result must be an hdp_clustering_result (from hdp_clustering())", call. = FALSE)
+  }
   which(result[["hdp"]][["beta_mean"]] > beta_threshold)
 }

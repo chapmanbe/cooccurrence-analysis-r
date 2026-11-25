@@ -97,7 +97,7 @@ All six of Claude's bugs. Gemini found each one independently. **All six fixed 2
   Imports.
 
 ### Gemini only: bugs
-G1–G4 **fixed 2026-11-25**, each with a test that failed first.
+G1–G10 **fixed 2026-11-25**, each with a test that failed first.
 
 - **G1** `R/hdp_multiseed.R:25`: `adjusted_rand_index` computes `na * max(ib)` in integer
   arithmetic and allocates a dense `na × nb` table. **Verified:**

@@ -312,7 +312,7 @@ fit_hdp_bernoulli_mixture <- function(x, group, n_groups, k_max = 20L, alpha = 1
   if (!is.null(init)) {
     if (n_init != 1L) stop("an explicit init needs n_init = 1", call. = FALSE)
     if (!is.matrix(init) || !is.numeric(init) || !identical(dim(init), c(n, as.integer(k_max))) ||
-          anyNA(init) || any(init <= 0)) {
+          anyNA(init) || any(init <= 0) || any(!is.finite(init))) {
       stop(sprintf("init must be a positive numeric %d x %d matrix", n, as.integer(k_max)),
            call. = FALSE)
     }
@@ -346,8 +346,8 @@ fit_hdp_bernoulli_mixture <- function(x, group, n_groups, k_max = 20L, alpha = 1
   for (i in seq_len(n_init)) {
     res <- .run_hdp_cavi(xf, group, n_groups, as.integer(k_max), alpha, gamma, a_prior, b_prior,
                          as.integer(max_iter), tol, effective_k_threshold, init = init)
-    # A non-finite ELBO never wins: NaN > best is NA, not TRUE.
-    if (isTRUE(res[["elbo"]] > best_elbo)) {
+    # A non-finite ELBO never wins, +Inf included.
+    if (is.finite(res[["elbo"]]) && res[["elbo"]] > best_elbo) {
       best_elbo <- res[["elbo"]]
       best <- res
     }

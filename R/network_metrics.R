@@ -21,10 +21,10 @@ modularity_q <- function(adjacency, assignments) {
     stop("modularity_q: assignments contains NA; every node needs a community", call. = FALSE)
   }
   if (n == 0L) return(0)
-  valid <- !anyNA(adjacency) && isSymmetric(unname(adjacency)) && all(adjacency >= 0) &&
+  valid <- all(is.finite(adjacency)) && isSymmetric(unname(adjacency)) && all(adjacency >= 0) &&
     all(diag(adjacency) == 0)
   if (!valid) {
-    stop("modularity_q: adjacency must be symmetric, non-negative, NA-free, with a zero diagonal",
+    stop("modularity_q: adjacency must be symmetric, non-negative, finite, with a zero diagonal",
          call. = FALSE)
   }
   if (all(adjacency == 0)) return(0)

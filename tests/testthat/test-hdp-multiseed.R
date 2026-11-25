@@ -343,3 +343,14 @@ test_that("hdp_cluster_recurrence counts recurrence and category agreement", {
   expect_error(hdp_cluster_recurrence(fits, 1L, active = active,
                                       categories = list("u", "x", "y")), "one category")
 })
+
+test_that("R-only: hdp_cluster_recurrence takes a reference index only as a whole number", {
+  fits <- list(a = 1, b = 2)
+  expect_error(hdp_cluster_recurrence(fits, reference = 1.5), "reference")
+  expect_error(hdp_cluster_recurrence(fits, reference = TRUE), "reference")
+})
+
+test_that("R-only: hdp_best_elbo raises on an infinite rel_tol", {
+  expect_error(hdp_best_elbo(c(0, -10), c(1, 2), rel_tol = Inf), "rel_tol")
+  expect_error(hdp_best_elbo(c(-1, -1e9), c(2, 1), rel_tol = Inf), "rel_tol")
+})
