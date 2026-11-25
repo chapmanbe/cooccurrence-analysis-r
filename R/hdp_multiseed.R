@@ -21,8 +21,10 @@ adjusted_rand_index <- function(a, b) {
   if (n < 2L) return(0)
   ia <- match(a, unique(a))
   ib <- match(b, unique(b))
-  na <- max(ia)
-  nij <- tabulate(ia + na * (ib - 1L), nbins = na * max(ib))
+  # Count only the label pairs that occur (a dense na x nb table can
+  # overflow); the cell key is a double, exact far beyond any label count.
+  cell <- ia + max(ia) * (ib - 1)
+  nij <- tabulate(match(cell, unique(cell)))
   c2 <- function(x) {
     x <- as.numeric(x)
     sum(x * (x - 1) / 2)
@@ -218,8 +220,17 @@ hdp_pairwise_ari <- function(fits) {
   if (length(fits) < 2L || is.null(names(fits))) {
     stop("fits must be a named list of at least two fits", call. = FALSE)
   }
+  nms <- names(fits)
+  if (anyNA(nms) || any(!nzchar(nms)) || anyDuplicated(nms)) {
+    stop("fits must have unique, non-empty names", call. = FALSE)
+  }
+  is_fit <- vapply(fits, inherits, logical(1), "hdp_clustering_result")
+  if (!all(is_fit)) {
+    stop(sprintf("fit(s) %s are not hdp_clustering_result (no record_assignments)",
+                 paste(nms[!is_fit], collapse = ", ")), call. = FALSE)
+  }
   ref <- fits[[1L]][["record_assignments"]]
-  for (nm in names(fits)) {
+  for (nm in nms) {
     ra <- fits[[nm]][["record_assignments"]]
     if (!identical(ra[["id"]], ref[["id"]]) || !identical(ra[["group"]], ref[["group"]])) {
       stop(sprintf("fit %s is not on the same records, in the same order, as fit %s",

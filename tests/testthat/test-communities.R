@@ -151,3 +151,8 @@ test_that("R-only: stratified analysis and the pipeline pass seed and method thr
   expect_identical(piped[["communities"]], detect_communities(piped[["network"]], seed = 3L))
   expect_error(run_network_pipeline(ev, stratify_by_group = FALSE), "seed is required")
 })
+
+test_that("R-only: modularity_q raises on NA community labels", {
+  # match() once mapped NA to a community of its own and scored that partition.
+  expect_error(modularity_q(two_triangles(), c(1, 1, 1, NA, NA, NA)), "NA")
+})

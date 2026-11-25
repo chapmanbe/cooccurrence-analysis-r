@@ -12,11 +12,14 @@
 #'
 #' `adjacency` is a symmetric, non-negative weight matrix with a zero
 #' diagonal; anything else raises. `assignments` is one community label per
-#' row (any values).
+#' row (any values but `NA`, which raises).
 #' @export
 modularity_q <- function(adjacency, assignments) {
   n <- nrow(adjacency)
   stopifnot(length(assignments) == n)
+  if (anyNA(assignments)) {
+    stop("modularity_q: assignments contains NA; every node needs a community", call. = FALSE)
+  }
   if (n == 0L) return(0)
   valid <- !anyNA(adjacency) && isSymmetric(unname(adjacency)) && all(adjacency >= 0) &&
     all(diag(adjacency) == 0)

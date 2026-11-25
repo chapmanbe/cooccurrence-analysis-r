@@ -270,3 +270,16 @@ test_that("community colours recycle Makie's seven wong colours by label (R)", {
                    c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00",
                      "#F0E442"))
 })
+
+test_that("R-only: an NA id raises even on an event the exclusion drops", {
+  # Excluded events were once dropped before any NA check on id or item.
+  ev <- exclusion_fixture()
+  ev <- rbind(ev, data.frame(id = NA, item = "OnlyA", Group = "B"))
+  expect_error(stratified_network_analysis(ev, exclusive_items = list(A = "OnlyA"),
+                                           min_count = 1L, seed = 1L),
+               "'id' contains NA")
+  ev[nrow(ev), c("id", "item")] <- list(999L, NA)
+  expect_error(stratified_network_analysis(ev, exclusive_items = list(A = "OnlyA"),
+                                           min_count = 1L, seed = 1L),
+               "'item' contains NA")
+})

@@ -192,6 +192,14 @@ test_that("hdp_fit_seeds raises rather than dropping a seed", {
   }
 })
 
+test_that("R-only: adjusted_rand_index on many labels, without integer overflow", {
+  # The contingency table was once a dense na x nb tabulate() indexed in
+  # integer arithmetic: 50000 x 50000 overflowed to NA.
+  expect_identical(adjusted_rand_index(1:50000, 1:50000), 1)
+  expect_identical(adjusted_rand_index(1:50000, c(1:49999, 1L)),
+                   adjusted_rand_index(c(1:4, 1L), 1:5))
+})
+
 test_that("hdp_fit_seeds leaves no RNG state behind when the caller had none", {
   draw <- function() {
     structure(list(hdp = list(u = stats::runif(1))), class = "hdp_clustering_result")
@@ -225,6 +233,20 @@ test_that("hdp_fit_seeds raises on a seed outside the integer range", {
   expect_error(hdp_fit_seeds(Inf, function() NULL), "integer range")
   expect_error(hdp_fit_seeds(3e9, function() NULL), "integer range")
   expect_error(hdp_fit_seeds(c(1, -2^31), function() NULL), "integer range")
+})
+
+test_that("R-only: hdp_pairwise_ari checks every fit, not every name", {
+  stub <- function(id, assignment) {
+    structure(list(record_assignments = data.frame(id = id, group = "A",
+                                                   assignment = assignment)),
+              class = "hdp_clustering_result")
+  }
+  f1 <- stub(1:4, c(1, 1, 2, 2))
+  shifted <- stub(2:5, c(1, 1, 2, 2))
+  # A repeated name once checked the first fit twice and the second never.
+  expect_error(hdp_pairwise_ari(list(a = f1, a = shifted)), "unique")
+  raw <- structure(list(assignments = c(1, 1, 2, 2)), class = "hdp_bernoulli_result")
+  expect_error(hdp_pairwise_ari(list(a = raw, b = raw)), "hdp_clustering_result")
 })
 
 test_that("hdp_pairwise_ari: every unordered pair, records aligned", {
