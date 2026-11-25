@@ -2,3 +2,6 @@
 .RData
 .Rproj.user
 *.Rcheck
+
+# Multi-model review scratch files (prompts, raw model output)
+.mmreview/

@@ -131,30 +131,22 @@ solve_lsap <- function(cost) {
 #'
 #' Returns a list of fits named by seed, in the order of `seeds`, with
 #' attribute `rng_kind`. Raises on
-#' a seed that is `NA`, not a whole number, or repeated; on a fit of the
+#' a seed that is `NA`, not a whole number, outside the integer range, or
+#' repeated; on a fit of the
 #' wrong class; and on any worker's error, naming its seed.
 #' @export
 hdp_fit_seeds <- function(seeds, fit_fn, cores = 1L) {
-  if (!is.numeric(seeds) || length(seeds) == 0L || anyNA(seeds) || any(seeds != round(seeds))) {
-    stop("seeds must be a non-empty vector of whole numbers", call. = FALSE)
+  if (!is.numeric(seeds) || length(seeds) == 0L || !all(.is_seed(seeds))) {
+    stop("seeds must be a non-empty vector of whole numbers within the integer range",
+         call. = FALSE)
   }
   if (anyDuplicated(seeds)) stop("seeds must not repeat", call. = FALSE)
   if (!is.function(fit_fn)) stop("fit_fn must be a function", call. = FALSE)
   seeds <- as.integer(seeds)
-  # Seeding under pinned kinds changes the session's kinds; give the
-  # caller's back (and its stream position, if it had one).
-  old_kind <- RNGkind()
-  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
-  if (had_seed) old_seed <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
-  on.exit({
-    do.call(RNGkind, as.list(old_kind))
-    # nolint next: object_name_linter. .Random.seed is R's own name.
-    if (had_seed) assign(".Random.seed", old_seed, envir = globalenv())
-  }, add = TRUE)
+  # .with_seed() gives the caller's stream and kinds back, or removes
+  # .Random.seed if the caller had none.
   one <- function(seed) {
-    set.seed(seed, kind = .HDP_RNG_KIND[["kind"]], normal.kind = .HDP_RNG_KIND[["normal.kind"]],
-             sample.kind = .HDP_RNG_KIND[["sample.kind"]])
-    fit <- fit_fn()
+    fit <- .with_seed(seed, fit_fn())
     if (!inherits(fit, "hdp_clustering_result")) {
       stop(sprintf("seed %d: fit_fn() did not return an hdp_clustering_result", seed),
            call. = FALSE)
@@ -186,15 +178,9 @@ hdp_fit_seeds <- function(seeds, fit_fn, cores = 1L) {
                  paste(unique(trimws(msgs)), collapse = "; ")), call. = FALSE)
   }
   fits <- stats::setNames(fits, as.character(seeds))
-  attr(fits, "rng_kind") <- .HDP_RNG_KIND
+  attr(fits, "rng_kind") <- .RNG_KIND
   fits
 }
-
-# The RNG kinds every per-seed fit is seeded under, named so a change of R's
-# defaults cannot move a seed's stream.
-# nolint next: object_name_linter. A constant.
-.HDP_RNG_KIND <- c(kind = "Mersenne-Twister", normal.kind = "Inversion",
-                   sample.kind = "Rejection")
 
 #' The best fit by final ELBO
 #'

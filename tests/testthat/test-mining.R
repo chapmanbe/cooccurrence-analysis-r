@@ -102,3 +102,31 @@ test_that("R-only: invalid mining arguments raise", {
   expect_error(mine_frequent_itemsets(transform(event_df, id = replace(id, 1L, NA))),
                "contains NA")
 })
+
+test_that("R-only: min_count above the number of records gives no itemsets or rules", {
+  # Support (min_n - 0.5) / N then exceeds 1, which arules rejects.
+  n <- length(unique(event_df[["id"]]))
+  fi <- mine_frequent_itemsets(event_df, min_count = n + 5L)
+  expect_identical(nrow(fi), 0L)
+  expect_identical(names(fi), c("Itemset", "Support", "N", "Length"))
+  expect_identical(nrow(mine_association_rules(event_df, min_count = n + 5L)), 0L)
+})
+
+test_that("R-only: arules runs without its time limit", {
+  seen <- NULL
+  testthat::local_mocked_bindings(apriori = function(data, parameter, ...) {
+    seen <<- parameter
+    stop("captured")
+  }, .package = "arules")
+  expect_error(mine_frequent_itemsets(event_df, min_count = 2L), "captured")
+  expect_identical(seen[["maxtime"]], 0)
+})
+
+test_that("R-only: an arules warning raises instead of returning a partial result", {
+  testthat::local_mocked_bindings(apriori = function(...) {
+    warning("Mining stopped (time limit reached). Only patterns up to a length of 2 returned!")
+    NULL
+  }, .package = "arules")
+  expect_error(mine_frequent_itemsets(event_df, min_count = 2L), "time limit")
+  expect_error(mine_association_rules(event_df, min_count = 2L), "time limit")
+})

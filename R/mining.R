@@ -66,11 +66,20 @@
 
 # Run arules::apriori with the support threshold half a record below `min_n`,
 # so every itemset with at least `min_n` records is enumerated whatever
-# rounding arules applies; callers then filter on exact counts.
+# rounding arules applies; callers then filter on exact counts. `maxtime = 0`
+# lifts arules' default 5-second limit, and any warning (a truncated search
+# among them) raises, so a partial result is never returned as complete.
 .apriori <- function(x, min_n, parameter) {
   trans <- methods::as(x, "transactions")
   parameter[["support"]] <- (min_n - 0.5) / nrow(x)
-  arules::apriori(trans, parameter = parameter, control = list(verbose = FALSE))
+  parameter[["maxtime"]] <- 0
+  withCallingHandlers(
+    arules::apriori(trans, parameter = parameter, control = list(verbose = FALSE)),
+    warning = function(w) {
+      stop(sprintf("arules::apriori warned, so its result may be incomplete: %s",
+                   conditionMessage(w)), call. = FALSE)
+    }
+  )
 }
 
 .itemset_key <- function(sets) vapply(sets, paste, character(1L), collapse = "\r")
@@ -98,6 +107,8 @@ mine_frequent_itemsets <- function(event_df, min_support = 0.005, min_count = NU
   empty <- empty[, c("Itemset", "Support", "N", "Length")]
   if (nrow(x) == 0L) return(empty)
   min_n <- .min_n(min_support, min_count, nrow(x))
+  # No itemset is held by more records than there are.
+  if (min_n > nrow(x)) return(empty)
   found <- .apriori(x, min_n, list(minlen = 2L, maxlen = as.integer(max_length),
                                    target = "frequent itemsets"))
   sets <- lapply(arules::LIST(arules::items(found), decode = TRUE), .sort_c)
@@ -148,6 +159,7 @@ mine_association_rules <- function(event_df, min_support = 0.005, min_confidence
   if (nrow(x) == 0L) return(empty)
   n <- nrow(x)
   min_n <- .min_n(min_support, min_count, n)
+  if (min_n > n) return(empty)
   # Confidence is filtered exactly below; arules gets a threshold just under it.
   found <- .apriori(x, min_n, list(confidence = max(0, min_confidence - 1e-9), minlen = 2L,
                                    maxlen = as.integer(max_length), target = "rules"))

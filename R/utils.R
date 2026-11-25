@@ -45,12 +45,17 @@ round_digits <- function(x, digits) {
 #' @keywords internal
 .sort_c <- function(x) sort(x, method = "radix")
 
+#' Whether each of `x` is a whole number `set.seed()` accepts
+#' @keywords internal
+.is_seed <- function(x) {
+  if (!is.numeric(x)) return(rep(FALSE, length(x)))
+  is.finite(x) & x == round(x) & abs(x) <= .Machine$integer.max
+}
+
 #' Raise unless `seed` is NULL or one whole number `set.seed()` accepts
 #' @keywords internal
 .check_seed <- function(seed, caller) {
-  ok <- is.null(seed) ||
-    (is.numeric(seed) && length(seed) == 1L && is.finite(seed) && seed == round(seed) &&
-       abs(seed) <= .Machine$integer.max)
+  ok <- is.null(seed) || (length(seed) == 1L && isTRUE(.is_seed(seed)))
   if (!ok) {
     stop(sprintf(paste0("%s: seed must be NULL or one whole number within the integer range ",
                         "(NULL draws from the current RNG stream)"), caller), call. = FALSE)
@@ -81,7 +86,12 @@ round_digits <- function(x, digits) {
   # Pin the generator too: a seed alone gives different draws under another
   # RNGkind (L'Ecuyer under parallel, say). Restoring .Random.seed below also
   # restores the caller's kind, which that vector encodes.
-  set.seed(seed, kind = "Mersenne-Twister", normal.kind = "Inversion",
-           sample.kind = "Rejection")
+  set.seed(seed, kind = .RNG_KIND[["kind"]], normal.kind = .RNG_KIND[["normal.kind"]],
+           sample.kind = .RNG_KIND[["sample.kind"]])
   expr
 }
+
+# The RNG kinds every seeded call runs under, named so a change of R's
+# defaults cannot move a seed's stream.
+# nolint next: object_name_linter. A constant.
+.RNG_KIND <- c(kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")

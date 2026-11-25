@@ -339,3 +339,37 @@ test_that("R-only: Beta KL and stick means match independent formulas", {
   expect_identical(hdp_effective_k(c(0.5, 0.3, 0.15, 0.05)), 3L)
   expect_identical(hdp_effective_k(c(0.4, 0.4), threshold = 0.95), 2L)
 })
+
+test_that("R-only: init is matched to records by id, whatever the id's type", {
+  # .init_for_records once keyed ids by as.numeric(): character ids all
+  # became NA ("init has a record more than once"), "01" and "1" collided.
+  m_chr <- list(group_labels = "A", group = c(1L, 1L), ids = c("01", "1"))
+  init <- data.frame(group = "A", id = c("1", "01"), c1 = c(10, 20))
+  expect_identical(.init_for_records(init, m_chr, 1L), matrix(c(20, 10)))
+  m_p <- list(group_labels = c("A", "B"), group = c(1L, 2L), ids = c("P1", "P2"))
+  init_p <- data.frame(group = c("B", "A"), id = c("P2", "P1"), c1 = c(2, 1))
+  expect_identical(.init_for_records(init_p, m_p, 1L), matrix(c(1, 2)))
+  init_f <- transform(init_p, id = factor(id, levels = c("P2", "P1")))
+  expect_identical(.init_for_records(init_f, m_p, 1L), matrix(c(1, 2)))
+  # Numeric ids still match across integer and double.
+  m_num <- list(group_labels = "A", group = c(1L, 1L), ids = 1:2)
+  init_num <- data.frame(group = "A", id = c(2, 1), c1 = c(5, 4))
+  expect_identical(.init_for_records(init_num, m_num, 1L), matrix(c(4, 5)))
+  init_bad <- data.frame(group = c("A", "B"), id = c("x", "y"), c1 = 1)
+  expect_error(.init_for_records(init_bad, m_p, 1L), "2 missing")
+})
+
+test_that("R-only: hdp_clustering with init gives the same fit for character ids", {
+  ev <- make_test_event_df()
+  m <- record_item_matrix(ev, group_col = "Group")
+  k <- 3L
+  start <- outer(seq_along(m[["ids"]]), seq_len(k), function(i, j) 1 + (i + j) %% 3)
+  init <- data.frame(group = m[["group_labels"]][m[["group"]]], id = m[["ids"]])
+  init[paste0("c", seq_len(k))] <- start
+  fit <- hdp_clustering(ev, k_max = k, n_init = 1L, init = init[rev(seq_len(nrow(init))), ])
+  ev_chr <- transform(ev, id = sprintf("R%03d", id))
+  init_chr <- transform(init, id = sprintf("R%03d", id))
+  fit_chr <- hdp_clustering(ev_chr, k_max = k, n_init = 1L, init = init_chr)
+  expect_identical(fit_chr[["hdp"]][["assignments"]], fit[["hdp"]][["assignments"]])
+  expect_equal(fit_chr[["hdp"]][["elbo"]], fit[["hdp"]][["elbo"]])
+})

@@ -157,7 +157,12 @@ hdp_clustering <- function(event_df, group_col = "Group", min_items = 2L, k_max 
     stop(sprintf("init has %d component columns; k_max is %d", length(comp), k_max),
          call. = FALSE)
   }
-  key <- function(g, id) paste(g, sprintf("%.17g", as.numeric(id)), sep = "\r")
+  # Numeric ids compare by value (1L matches 1.0); any other id by its text,
+  # so "01" and "1" stay distinct and a factor matches on its labels.
+  key <- function(g, id) {
+    id <- if (is.numeric(id)) sprintf("%.17g", id) else as.character(id)
+    paste(g, id, sep = "\r")
+  }
   init_key <- key(as.character(init[["group"]]), init[["id"]])
   if (anyDuplicated(init_key)) stop("init has a record more than once", call. = FALSE)
   rows <- match(key(m[["group_labels"]][m[["group"]]], m[["ids"]]), init_key)

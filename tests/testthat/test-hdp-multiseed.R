@@ -192,6 +192,41 @@ test_that("hdp_fit_seeds raises rather than dropping a seed", {
   }
 })
 
+test_that("hdp_fit_seeds leaves no RNG state behind when the caller had none", {
+  draw <- function() {
+    structure(list(hdp = list(u = stats::runif(1))), class = "hdp_clustering_result")
+  }
+  env <- globalenv()
+  had <- exists(".Random.seed", envir = env, inherits = FALSE)
+  if (had) saved <- get(".Random.seed", envir = env, inherits = FALSE)
+  # nolint next: object_name_linter. .Random.seed is R's own name.
+  on.exit(if (had) assign(".Random.seed", saved, envir = env), add = TRUE)
+  if (had) rm(".Random.seed", envir = env)
+  hdp_fit_seeds(c(1, 2), draw)
+  expect_false(exists(".Random.seed", envir = env, inherits = FALSE))
+})
+
+test_that("hdp_fit_seeds restores the caller's stream and kinds without warning", {
+  draw <- function() {
+    structure(list(hdp = list(u = stats::runif(1))), class = "hdp_clustering_result")
+  }
+  old <- RNGkind()
+  on.exit(do.call(RNGkind, as.list(old)), add = TRUE)
+  expect_warning(RNGkind(sample.kind = "Rounding"), "Rounding")
+  set.seed(11)
+  expected <- stats::runif(1)
+  set.seed(11)
+  expect_no_warning(hdp_fit_seeds(c(1, 2), draw))
+  expect_identical(stats::runif(1), expected)
+  expect_identical(RNGkind()[[3L]], "Rounding")
+})
+
+test_that("hdp_fit_seeds raises on a seed outside the integer range", {
+  expect_error(hdp_fit_seeds(Inf, function() NULL), "integer range")
+  expect_error(hdp_fit_seeds(3e9, function() NULL), "integer range")
+  expect_error(hdp_fit_seeds(c(1, -2^31), function() NULL), "integer range")
+})
+
 test_that("hdp_pairwise_ari: every unordered pair, records aligned", {
   set.seed(5)
   ev <- seed_events()
