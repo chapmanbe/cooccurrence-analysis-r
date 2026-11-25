@@ -54,6 +54,85 @@ fisher_greater <- function(n11, n_a, n_b, n) {
   stats::fisher.test(ct, alternative = "greater")[["p.value"]]
 }
 
+#' Each record's distinct items, read straight from the event table
+#' (independent of the package). Records with fewer than `min_items` distinct
+#' items are dropped, as the mining functions drop them.
+record_sets <- function(ev, min_items = 1L) {
+  sets <- lapply(split(as.character(ev[["item"]]), ev[["id"]]), unique)
+  unname(sets[lengths(sets) >= min_items])
+}
+
+#' Number of records in `sets` holding every one of `items`.
+n_holding <- function(sets, items) {
+  sum(vapply(sets, function(s) all(items %in% s), logical(1)))
+}
+
+#' Every pair of items that co-occurs in at least one record, as sorted
+#' "a|b" keys in C-locale order.
+cooccurring_pairs <- function(sets) {
+  keys <- unlist(lapply(sets, function(s) {
+    if (length(s) < 2L) return(character(0))
+    pr <- utils::combn(sort(s, method = "radix"), 2L)
+    paste(pr[1L, ], pr[2L, ], sep = "|")
+  }))
+  sort(unique(keys), method = "radix")
+}
+
+#' The 2x2 table for items `a` and `b` over `sets`:
+#' rows a present/absent, columns b present/absent.
+pair_table <- function(sets, a, b) {
+  n <- length(sets)
+  n11 <- n_holding(sets, c(a, b))
+  n_a <- n_holding(sets, a)
+  n_b <- n_holding(sets, b)
+  matrix(c(n11, n_a - n11, n_b - n11, n - n_a - n_b + n11), 2L, byrow = TRUE)
+}
+
+#' Pearson chi-square p-value (1 df, no continuity correction) from the
+#' definition, sum((O - E)^2 / E), without stats::chisq.test().
+pearson_p <- function(tab) {
+  e <- outer(rowSums(tab), colSums(tab)) / sum(tab)
+  stats::pchisq(sum((tab - e)^2 / e), df = 1, lower.tail = FALSE)
+}
+
+#' Every itemset of 2 to `max_len` items held by at least `min_n` of `sets`,
+#' enumerated from the records themselves, as sorted "a+b" keys with counts.
+frequent_sets <- function(sets, min_n, max_len = 4L) {
+  keys <- unlist(lapply(sets, function(s) {
+    s <- sort(s, method = "radix")
+    sizes <- seq_len(min(length(s), max_len))
+    unlist(lapply(sizes[sizes >= 2L], function(k) {
+      apply(utils::combn(s, k), 2L, paste, collapse = "+")
+    }))
+  }))
+  counts <- table(keys)
+  counts <- counts[counts >= min_n]
+  stats::setNames(as.integer(counts), names(counts))
+}
+
+#' Every rule LHS => RHS (one RHS item) from the itemsets of `frequent_sets()`,
+#' with N, Support, Confidence, Coverage and Lift computed from record counts.
+rules_from_records <- function(sets, min_n, min_conf, max_len = 4L) {
+  fs <- frequent_sets(sets, min_n, max_len)
+  n <- length(sets)
+  rows <- lapply(names(fs), function(key) {
+    items <- strsplit(key, "+", fixed = TRUE)[[1L]]
+    lapply(items, function(rhs) {
+      lhs <- setdiff(items, rhs)
+      n_lhs <- n_holding(sets, lhs)
+      conf <- fs[[key]] / n_lhs
+      data.frame(rule = paste(paste(lhs, collapse = "+"), rhs, sep = ">"), N = fs[[key]],
+                 Support = fs[[key]] / n, Confidence = conf, Coverage = n_lhs / n,
+                 Lift = conf / (n_holding(sets, rhs) / n))
+    })
+  })
+  out <- do.call(rbind, unlist(rows, recursive = FALSE))
+  out <- out[out[["Confidence"]] >= min_conf, ]
+  out <- out[order(out[["rule"]], method = "radix"), ]
+  rownames(out) <- NULL
+  out
+}
+
 #' Adjusted Rand index of two labelings, written out from the definition
 #' (as the Julia suite's `_test_ari`), independent of the package.
 adjusted_rand <- function(a, b) {

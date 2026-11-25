@@ -9,8 +9,17 @@ event_df <- make_test_event_df()
 
 test_that("odds_ratio zero-cell handling (C5)", {
   # Expected values computed by running the Julia reference
-  # (CooccurrenceAnalysis.odds_ratio) on the same tables.
+  # (CooccurrenceAnalysis.odds_ratio) on the same tables, and checked against
+  # the closed form: ad/bc, or with any zero cell the Haldane
+  # (a+.5)(d+.5)/((b+.5)(c+.5)).
   tbl <- function(a, b, c, d) matrix(c(a, b, c, d), 2L, byrow = TRUE)
+  haldane <- function(a, b, c, d) (a + 0.5) * (d + 0.5) / ((b + 0.5) * (c + 0.5))
+  expect_equal(33.333333333333336, 10 * 20 / (2 * 3), tolerance = 1e-15)
+  expect_identical(121, haldane(5, 0, 0, 5))
+  expect_equal(1.2857142857142858, haldane(0, 0, 3, 4), tolerance = 1e-15)
+  expect_equal(101.66666666666667, haldane(7, 0, 4, 30), tolerance = 1e-15)
+  expect_equal(67.85714285714286, haldane(9, 3, 0, 12), tolerance = 1e-15)
+  expect_equal(0.06293706293706294, haldane(4, 6, 5, 0), tolerance = 1e-15)
   expect_equal(odds_ratio(tbl(10, 2, 3, 20)), 33.333333333333336, tolerance = 1e-15)
   expect_equal(odds_ratio(tbl(10, 2, 3, 20), correction = "none"), 33.333333333333336,
                tolerance = 1e-15)
@@ -50,7 +59,9 @@ test_that("test_association (Fisher: one-sided, significant for the planted pair
 
 # Expected values below come from running the Julia reference on the same
 # fixture (compute_pairwise_associations / build_cooccurrence_network /
-# adjust_pvalues, CooccurrenceAnalysis.jl at 2026-10-06).
+# adjust_pvalues, CooccurrenceAnalysis.jl at 2026-10-06). Each test also
+# recomputes them from the records with independent code (helper-fixtures.R),
+# so a bug Julia and R share cannot pass.
 
 test_that("test_association with chisq (two-sided Pearson, no continuity correction)", {
   assoc <- compute_pairwise_associations(event_df, test = "chisq")
@@ -62,6 +73,17 @@ test_that("test_association with chisq (two-sided Pearson, no continuity correct
   expect_equal(assoc[["p_adjusted"]], c(0.034127597025607352, 0.035785546721876872,
                                         0.017115774391395704, 0.0037694896206064586),
                tolerance = 1e-12)
+  # Independent: the family is the pairs that co-occur; p from the Pearson
+  # definition on each 2x2 (not chisq.test(), which warns on these small
+  # expected counts); q from stats::p.adjust().
+  sets <- record_sets(event_df)
+  pairs <- cooccurring_pairs(sets)
+  expect_identical(paste(assoc[["item_a"]], assoc[["item_b"]], sep = "|"), pairs)
+  p <- vapply(strsplit(pairs, "|", fixed = TRUE), function(ab) {
+    pearson_p(pair_table(sets, ab[[1L]], ab[[2L]]))
+  }, numeric(1))
+  expect_equal(assoc[["p_value"]], p, tolerance = 1e-12)
+  expect_equal(assoc[["p_adjusted"]], stats::p.adjust(p, "BH"), tolerance = 1e-12)
   net <- build_cooccurrence_network(event_df, min_count = 1L, test = "chisq")
   expect_identical(network_edges(net)[, c("item_a", "item_b")],
                    data.frame(item_a = c("GA1", "GB1", "Item01", "Item03"),
@@ -97,6 +119,15 @@ test_that("network with Bonferroni and Holm corrections", {
   expect_equal(holm[["p_adjusted"]], c(0.07944686383040192, 0.07944686383040192,
                                        0.04176181862857771, 0.068571428571428589),
                tolerance = 1e-12)
+  # Independent: one-sided Fisher on each co-occurring pair, then p.adjust().
+  sets <- record_sets(event_df)
+  pairs <- cooccurring_pairs(sets)
+  p <- vapply(strsplit(pairs, "|", fixed = TRUE), function(ab) {
+    tab <- pair_table(sets, ab[[1L]], ab[[2L]])
+    fisher_greater(tab[1L, 1L], sum(tab[1L, ]), sum(tab[, 1L]), sum(tab))
+  }, numeric(1))
+  expect_equal(bonf[["p_adjusted"]], stats::p.adjust(p, "bonferroni"), tolerance = 1e-12)
+  expect_equal(holm[["p_adjusted"]], stats::p.adjust(p, "holm"), tolerance = 1e-12)
   for (corr in c("bonferroni", "holm")) {
     net <- build_cooccurrence_network(event_df, min_count = 1L, correction = corr)
     expect_identical(network_edges(net)[, c("item_a", "item_b")],

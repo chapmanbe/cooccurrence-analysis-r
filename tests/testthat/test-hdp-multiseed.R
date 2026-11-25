@@ -46,8 +46,18 @@ fake_fit <- function(theta, items = paste0("i", seq_len(ncol(theta)))) {
             class = "hdp_clustering_result")
 }
 
-test_that("adjusted_rand_index matches the Julia reference", {
-  # Values printed by CooccurrenceAnalysis._adjusted_rand_index (Julia).
+test_that("adjusted_rand_index matches the Julia reference and the definition", {
+  # Values printed by CooccurrenceAnalysis._adjusted_rand_index (Julia), each
+  # also checked against adjusted_rand(), the definition written out in
+  # helper-fixtures.R.
+  cases <- list(list(c(1, 1, 2, 2, 3, 3), c(1, 1, 2, 3, 3, 3)),
+                list(c(1, 1, 1, 2, 2, 2, 3, 3), c(2, 2, 1, 1, 1, 3, 3, 3)),
+                list(1:4, c(1, 1, 1, 1)), list(c(1, 1, 1), c(2, 2, 2)),
+                list(c(1, 1, 2, 2, 1, 2, 3, 1, 2, 3), c(3, 3, 1, 1, 3, 2, 2, 3, 1, 2)))
+  for (ab in cases) {
+    expect_equal(adjusted_rand_index(ab[[1L]], ab[[2L]]), adjusted_rand(ab[[1L]], ab[[2L]]),
+                 tolerance = 1e-15)
+  }
   expect_equal(adjusted_rand_index(c(1, 1, 2, 2, 3, 3), c(1, 1, 2, 3, 3, 3)),
                0.4444444444444444, tolerance = 1e-15)
   expect_equal(adjusted_rand_index(c(1, 1, 1, 2, 2, 2, 3, 3), c(2, 2, 1, 1, 1, 3, 3, 3)),

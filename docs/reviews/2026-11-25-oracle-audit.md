@@ -22,6 +22,14 @@ to 1e-12. So far, no shared bug has turned up in these values.
 | `test-network.R:140` | `round_digits` ties | `round(x * 10^d) / 10^d`. The tie rule is a convention, chosen deliberately |
 | `test-hdp-known-answers.R:39` | full CAVI traces (4 cases) | none for the whole trace. Partial: an ELBO evaluator written from the definition, and a fixed-point check |
 
+**Done 2026-11-25:** the odds-ratio, chi-square, Bonferroni/Holm, four mining and ARI
+tests now also check their values against independent code in `helper-fixtures.R`
+(`record_sets`, `pair_table`, `pearson_p`, `frequent_sets`, `rules_from_records`,
+`fisher_greater`, `adjusted_rand`, `stats::p.adjust`). Deliberately breaking the code made
+the tests fail: chi-square with N-1, lift with n+1, Holm swapped for Hochberg, and an ARI
+edge case. `round_digits` gets no extra check, because its implementation is the proposed
+check. It stays a documented convention. The HDP known answers are still Julia-only.
+
 ## Open questions the audit raised
 1. **The HDP global-stick update is an approximation inherited from Julia.** It pools raw
    soft counts rather than table counts (`R/hdp_clustering.R:119`), so the ELBO is still a

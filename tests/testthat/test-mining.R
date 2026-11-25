@@ -1,10 +1,12 @@
 # Ported from the Julia suite's "mining" testsets. Expected values come from
 # running the Julia reference (build_transactions(event_df; min_items = 2) then
 # mine_frequent_itemsets / mine_association_rules, CooccurrenceAnalysis.jl at
-# 2026-10-06) on the shared fixture: 20 multi-item records.
+# 2026-10-06) on the shared fixture: 20 multi-item records. Each test also
+# recounts them from the records with independent code (helper-fixtures.R).
 
 skip_if_not_installed("arules")
 event_df <- make_test_event_df()
+multi <- record_sets(event_df, min_items = 2L)
 
 set_keys <- function(sets) vapply(sets, paste, character(1L), collapse = "+")
 
@@ -16,6 +18,11 @@ test_that("mine_frequent_itemsets", {
                    c("Item01+Item02", "GA1+Item05", "GB1+Item01", "Item03+Item04"))
   expect_identical(fi[["N"]], c(10L, 5L, 3L, 2L))
   expect_equal(fi[["Support"]], c(0.5, 0.25, 0.15, 0.1))
+  expect_identical(length(multi), 20L)
+  expected <- frequent_sets(multi, min_n = 2L)
+  expect_identical(sort(set_keys(fi[["Itemset"]]), method = "radix"), names(expected))
+  expect_identical(fi[["N"]], unname(expected[set_keys(fi[["Itemset"]])]))
+  expect_equal(fi[["Support"]], fi[["N"]] / length(multi))
 })
 
 test_that("mine_frequent_itemsets with min_count: thresholds are inclusive", {
@@ -26,6 +33,11 @@ test_that("mine_frequent_itemsets with min_count: thresholds are inclusive", {
   }
   expect_identical(nrow(mine_frequent_itemsets(event_df, min_count = 3L)), 3L)
   expect_identical(nrow(mine_frequent_itemsets(event_df, min_count = 2L)), 4L)
+  for (k in 2:6) {
+    fi <- mine_frequent_itemsets(event_df, min_count = k)
+    expect_identical(sort(set_keys(fi[["Itemset"]]), method = "radix"),
+                     names(frequent_sets(multi, min_n = k)))
+  }
 })
 
 test_that("R-only: min_count is used as a count, without Julia's fraction round trip", {
@@ -46,6 +58,9 @@ test_that("mine_association_rules", {
   # Julia: 7 rules; Item01 => GB1 (confidence 3/13) falls below 0.3.
   expect_identical(nrow(rules), 7L)
   expect_false(any(set_keys(rules[["LHS"]]) == "Item01" & rules[["RHS"]] == "GB1"))
+  expect_identical(sort(paste(set_keys(rules[["LHS"]]), rules[["RHS"]], sep = ">"),
+                        method = "radix"),
+                   rules_from_records(multi, min_n = 2L, min_conf = 0.3)[["rule"]])
 })
 
 test_that("mine_association_rules metrics match the reference exactly", {
@@ -62,6 +77,13 @@ test_that("mine_association_rules metrics match the reference exactly", {
   expect_equal(got[["Lift"]], c(4, rep(1.5384615384615383, 4), 9.9999999999999982,
                                 9.9999999999999982, 4), tolerance = 1e-15)
   expect_equal(got[["Support"]], c(0.25, 0.15, 0.15, 0.5, 0.5, 0.1, 0.1, 0.25), tolerance = 1e-15)
+  # Independent: every metric recounted from the records.
+  ref <- rules_from_records(multi, min_n = 2L, min_conf = 0, max_len = 2L)
+  expect_identical(paste(set_keys(got[["LHS"]]), got[["RHS"]], sep = ">"), ref[["rule"]])
+  expect_identical(got[["N"]], ref[["N"]])
+  for (col in c("Support", "Confidence", "Coverage", "Lift")) {
+    expect_equal(got[[col]], ref[[col]], tolerance = 1e-12)
+  }
 
   # Julia at min_count = 5, min_confidence = 0.5: the four rules on the N >= 5 pairs.
   strong <- mine_association_rules(event_df, min_count = 5L, min_confidence = 0.5)
