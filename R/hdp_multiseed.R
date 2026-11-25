@@ -9,7 +9,8 @@
 #'
 #' 1 when there are fewer than two elements (no pair to disagree on) or both
 #' partitions are trivial (the denominator vanishes). The Julia package
-#' returns 0 for fewer than two elements; that is a bug this package fixes. Labels may be any atomic values.
+#' returns 0 for fewer than two elements; that is a bug this package fixes.
+#' Labels may be any atomic values.
 #' Pair counts are doubles, not integers, so the products stay finite at a
 #' million elements (the reference's `Int` product overflows near there).
 #' Raises on unequal lengths or `NA` labels.

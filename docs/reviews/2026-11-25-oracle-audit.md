@@ -30,13 +30,27 @@ the tests fail: chi-square with N-1, lift with n+1, Holm swapped for Hochberg, a
 edge case. `round_digits` gets no extra check, because its implementation is the proposed
 check. It stays a documented convention. The HDP known answers are still Julia-only.
 
+**HDP ELBO, done 2026-11-25:** `tests/testthat/helper-hdp-elbo.R` evaluates the ELBO from
+the model's definition: each term written out separately, the data term computed record by
+record, and the Beta KL in its textbook form, itself checked against numerical integration.
+`test-hdp-elbo.R` captures the variational state at every iteration of the four known-answer
+fits and checks the evaluator against the package's value (1e-10) and against the Julia trace
+(1e-9). All of them agree. Making the global-stick prior Beta(1, 1) broke three of the four
+cases, and moving the group-stick prior 1% broke all four. **So the ELBO formula is right,
+and the dips in the traces come from the updates:** the pooled global-stick update and the
+plug-in global weights are not exact coordinate ascent on this bound. Whether those
+approximations are acceptable is still a modeling decision. Two conventions are written into
+the evaluator rather than tested: the plug-in mean global weights in the group-stick prior,
+and the last group stick's Beta(a, 1e-6) in E[log pi].
+
 ## Open questions the audit raised
 1. **The HDP global-stick update is an approximation inherited from Julia.** It pools raw
    soft counts rather than table counts (`R/hdp_clustering.R:119`), so the ELBO is still a
    lower bound but can fall, and the pinned traces do fall. This is documented, not a bug,
    but no one has checked the approximation outside Julia. An independent ELBO evaluator would
    test the ELBO formula. Whether the approximation is acceptable is a modeling decision.
-2. **ARI for one record:** `adjusted_rand_index(1, 1)` is pinned to 0 in
+2. **ARI for one record (resolved 2026-11-25: 1, the definition's value; Julia's 0 is listed
+   under known Julia bugs):** `adjusted_rand_index(1, 1)` is pinned to 0 in
    `test-hdp-multiseed.R:66`, while the `adjusted_rand()` helper returns 1. The suite holds
    both conventions, so one should be chosen.
 3. **`round_digits` ties:** 0.15 is stored as 0.1499…, so correct rounding gives 0.1. Julia
