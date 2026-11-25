@@ -7,9 +7,9 @@
 
 #' Adjusted Rand index between two partitions of the same elements
 #'
-#' Port of the reference's `_adjusted_rand_index`, edge cases included:
-#' 0 when there are fewer than two elements, 1 when both partitions are
-#' trivial (the denominator vanishes). Labels may be any atomic values.
+#' 1 when there are fewer than two elements (no pair to disagree on) or both
+#' partitions are trivial (the denominator vanishes). The Julia package
+#' returns 0 for fewer than two elements; that is a bug this package fixes. Labels may be any atomic values.
 #' Pair counts are doubles, not integers, so the products stay finite at a
 #' million elements (the reference's `Int` product overflows near there).
 #' Raises on unequal lengths or `NA` labels.
@@ -18,7 +18,7 @@ adjusted_rand_index <- function(a, b) {
   n <- length(a)
   if (n != length(b)) stop("Label vectors must have same length", call. = FALSE)
   if (anyNA(a) || anyNA(b)) stop("labels must not be NA", call. = FALSE)
-  if (n < 2L) return(0)
+  if (n < 2L) return(1)
   ia <- match(a, unique(a))
   ib <- match(b, unique(b))
   # Count only the label pairs that occur (a dense na x nb table can

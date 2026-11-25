@@ -73,7 +73,10 @@ test_that("adjusted_rand_index: R-only edge cases", {
   a <- c(1, 1, 2, 2, 3, 3, 3)
   expect_identical(adjusted_rand_index(a, c(9, 9, 4, 4, 7, 7, 7)), 1)   # relabeling
   expect_identical(adjusted_rand_index(c("x", "x", "y"), c(2, 2, 5)), 1)
-  expect_identical(adjusted_rand_index(1, 1), 0)
+  # One record: both labelings are the same single cluster, so they agree
+  # perfectly (as adjusted_rand() and an empty labeling give).
+  expect_identical(adjusted_rand_index(1, 1), 1)
+  expect_identical(adjusted_rand_index(1, 1), adjusted_rand(1, 1))
   expect_error(adjusted_rand_index(1:3, 1:2), "same length")
   expect_error(adjusted_rand_index(c(1, NA), c(1, 2)), "NA")
 })

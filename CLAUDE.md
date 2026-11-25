@@ -50,6 +50,7 @@ Each was found while porting; the test for it is marked `R-only`. Julia results 
 - **Chi-square on a zero margin raises.** Julia returns `NaN` for a pair whose item is in every record, and the `NaN` then turns every q-value in the family into `NaN`.
 - **Communities use full Leiden (default) or Louvain from igraph.** Julia runs only Louvain's first phase (local moving, no aggregation), which stalls below the optimum: on a ring of 20 triangles it stops at Q = 0.70 where aggregation reaches 0.77. Partitions therefore differ from Julia's, and `community_method`'s default is now `"leiden"`. Both algorithms are randomized, so `detect_communities()`, `stratified_network_analysis()` and `run_network_pipeline()` require `seed` (a whole number, applied locally, or `NULL` for the caller's stream). Expected partitions in tests come from fixtures unambiguous by construction, not from Julia.
 - **`min_count` in mining is used as a count.** Julia converts it to a fraction and RuleMiner back with `ceil(min_support * n)`, which can land one above it (7 of 100 gives 8).
+- **The adjusted Rand index of fewer than two elements is 1.** Julia returns 0, but with no pair to disagree on the two labelings agree perfectly, as the definition gives.
 
 ## Conventions
 
