@@ -127,7 +127,11 @@ hdp_effective_k <- function(beta_mean, threshold = 0.95) {
   list(alpha = c(1 + n_k[-k], 1), beta = c(pmax(gamma + tail[-k], 1e-6), 1e-6))
 }
 
-# Per-group sticks, coupled to the global weights.
+# Per-group sticks, coupled to the global weights. APPROXIMATION (the
+# reference's, undocumented there): the prior Beta(alpha b_k, alpha sum_{l>k} b_l)
+# takes the global weights b at their variational mean, a plug-in for an
+# expectation with no closed form. The reference's comment calls this math
+# exact; it is not, and with the global-stick pooling it is why the ELBO can fall.
 .hdp_update_group_sticks <- function(r, group, n_groups, beta_mean, alpha) {
   n_jk <- rowsum(r, group, reorder = TRUE)
   if (nrow(n_jk) != n_groups) stop("a group has no records", call. = FALSE)

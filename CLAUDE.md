@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`CooccurrenceAnalysis` (R) is a domain-neutral package for co-occurrence patterns in binary (presence/absence) event data. It began as an R port of the Julia package of the same name (`../cooccurrence-analysis`). The port is finished, and **this package is now its own specification**: Julia is one cross-check among several, not the authority. The Julia code was never reviewed the way this package has been, and three of its bugs have already turned up (below), so agreeing with Julia shows only that the two agree, not that either is right. The data model is neutral: **records** (`id`) accumulate **events**, each carrying one **item**, and records may belong to **groups**. Nothing in this package names an application domain, and nothing should.
+`CooccurrenceAnalysis` (R) is a domain-neutral package for co-occurrence patterns in binary (presence/absence) event data. It began as an R port of the Julia package of the same name (`../cooccurrence-analysis`). The port is finished, and **this package is now its own specification**: Julia is one cross-check among several, not the authority. The Julia code was never reviewed the way this package has been, and four of its bugs have already turned up (below), so agreeing with Julia shows only that the two agree, not that either is right. The data model is neutral: **records** (`id`) accumulate **events**, each carrying one **item**, and records may belong to **groups**. Nothing in this package names an application domain, and nothing should.
 
 ## What is ported
 
@@ -35,10 +35,10 @@ One file per method family in `R/`: `network_construction.R` (2x2 statistics, pa
 
 ## Numerical rules (each was a real bug)
 
-These match the Julia package's published behavior, and results already reported depend on them. They are this package's decisions now; change one only deliberately, with an independent test.
+These match the Julia package's behavior, which produced results already reported, including a circulated draft manuscript's. They are this package's decisions now; change one only deliberately, with an independent test.
 
 
-- **Rounding** goes through `round_digits()`, never `round(x, digits)`. R's decimal rounding disagrees with Julia's on ties (`round(0.15, 1)`), which changes published tables.
+- **Rounding** goes through `round_digits()`, never `round(x, digits)`. R's decimal rounding disagrees with Julia's built-in `round` on ties (`round(0.15, 1)`); the Julia history does not record whether a published table depends on it.
 - **Fisher tests are one-sided** (upper tail), and the **BH family is exactly the pairs that co-occur** in at least one record, not every possible pair. Widening the family changes every q-value.
 - **`odds_ratio` applies the Haldane correction by default** (+0.5 to all four cells when any cell is zero), as Julia does; the raw ratio is `Inf`.
 - **Sort in C-locale byte order** (`.sort_c`); tests pin `LC_COLLATE = "C"`. Group results are named and ordered by group value, never by position.
