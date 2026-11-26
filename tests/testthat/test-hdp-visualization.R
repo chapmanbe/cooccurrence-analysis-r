@@ -6,16 +6,42 @@ hdp_fixture <- function() {
   hdp_clustering(make_test_event_df(), k_max = 4L, n_init = 2L)
 }
 
+# Each plot is built with ggplot2::ggplot_build(), so a broken aesthetic or
+# scale fails here, and what is drawn is checked against the fit itself.
+
 test_that("plot_hdp_stick_weights", {
-  expect_s3_class(plot_hdp_stick_weights(hdp_fixture()), "ggplot")
+  res <- hdp_fixture()
+  p <- plot_hdp_stick_weights(res)
+  expect_s3_class(p, "ggplot")
+  h <- res[["hdp"]]
+  active <- hdp_active_clusters(res)
+  bars <- ggplot2::ggplot_build(p)[["data"]][[1L]]
+  # One bar per group and per the global weights, for each active cluster.
+  expect_equal(sort(bars[["y"]]), sort(c(h[["pi_mean"]][, active], h[["beta_mean"]][active])))
 })
 
 test_that("plot_hdp_class_profiles", {
-  expect_s3_class(plot_hdp_class_profiles(hdp_fixture()), "ggplot")
+  res <- hdp_fixture()
+  p <- plot_hdp_class_profiles(res)
+  expect_s3_class(p, "ggplot")
+  d <- p[["data"]]
+  active <- hdp_active_clusters(res)
+  theta <- res[["hdp"]][["theta"]]
+  cells <- cbind(active[d[["row"]]], match(as.character(d[["item"]]), res[["item_names"]]))
+  expect_equal(d[["theta"]], theta[cells])
+  built <- ggplot2::ggplot_build(p)[["data"]]
+  expect_identical(nrow(built[[1L]]), nrow(d))
+  expect_identical(sort(built[[2L]][["label"]]), sort(d[["label"]]))
 })
 
 test_that("plot_hdp_sharing_heatmap", {
-  expect_s3_class(plot_hdp_sharing_heatmap(hdp_fixture()), "ggplot")
+  res <- hdp_fixture()
+  p <- plot_hdp_sharing_heatmap(res)
+  expect_s3_class(p, "ggplot")
+  pi_active <- res[["hdp"]][["pi_mean"]][, hdp_active_clusters(res)]
+  built <- ggplot2::ggplot_build(p)[["data"]]
+  expect_identical(nrow(built[[1L]]), length(pi_active))
+  expect_identical(sort(built[[2L]][["label"]]), sort(sprintf("%.3f", pi_active)))
 })
 
 test_that("plot_hdp_cluster_butterfly", {

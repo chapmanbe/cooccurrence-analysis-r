@@ -127,6 +127,8 @@ G1–G10 **fixed 2026-11-25**, each with a test that failed first.
   `R/hdp_multiseed.R:214` (`rel_tol = Inf` passes). Low severity.
 
 ### Gemini only: tests that cannot fail
+T1–T3 **fixed 2026-11-25**. Each strengthened test now fails under the break the finding named: a bad aesthetic, a hardcoded method and seed, or an ignored resolution.
+
 - **T1** `tests/testthat/test-hdp-visualization.R:10`: the three HDP plots are checked only
   with `expect_s3_class`, never with `ggplot_build()`, so a bad aesthetic still passes.
 - **T2** `tests/testthat/test-communities.R:140`: the seed and method passthrough test uses

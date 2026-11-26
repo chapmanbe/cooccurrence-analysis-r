@@ -138,18 +138,48 @@ test_that("R-only: an isolated vertex beside edges gets its own community", {
 })
 
 test_that("R-only: stratified analysis and the pipeline pass seed and method through", {
+  # make_test_event_df()'s networks have one best partition under any method
+  # or seed, so comparing partitions cannot catch a dropped argument; record
+  # what detect_communities() is actually called with instead.
+  calls <- list()
+  original <- detect_communities
+  spy <- function(net, method = "leiden", seed, ...) {
+    calls[[length(calls) + 1L]] <<- list(method = method, seed = seed)
+    original(net, method = method, seed = seed, ...)
+  }
+  testthat::local_mocked_bindings(detect_communities = spy)
   ev <- make_test_event_df()
   res <- stratified_network_analysis(ev, exclusive_items = NULL, min_count = 1L, alpha = 1,
                                      community_method = "louvain", seed = 3L)
-  for (g in names(res)) {
-    expect_identical(res[[g]][["communities"]],
-                     detect_communities(res[[g]][["network"]], method = "louvain", seed = 3L))
-  }
+  expect_identical(length(calls), length(res))
+  for (cl in calls) expect_identical(cl, list(method = "louvain", seed = 3L))
+  calls <- list()
+  run_network_pipeline(ev, min_count = 1L, alpha = 1, stratify_by_group = FALSE,
+                       community_method = "louvain", seed = 7L)
+  expect_identical(calls, list(list(method = "louvain", seed = 7L)))
+  calls <- list()
+  run_network_pipeline(ev, min_count = 1L, alpha = 1, stratify_by_group = FALSE, seed = NULL)
+  expect_identical(calls, list(list(method = "leiden", seed = NULL)))
   expect_error(stratified_network_analysis(ev, exclusive_items = NULL), "seed is required")
-  piped <- run_network_pipeline(ev, min_count = 1L, alpha = 1, stratify_by_group = FALSE,
-                                seed = 3L)
-  expect_identical(piped[["communities"]], detect_communities(piped[["network"]], seed = 3L))
   expect_error(run_network_pipeline(ev, stratify_by_group = FALSE), "seed is required")
+})
+
+test_that("R-only: resolution changes the partition, for both methods", {
+  # Two unit triangles joined by a 0.1 edge (m = 6.1). Q_gamma = sum_c [L_c / m -
+  # gamma (D_c / 2m)^2]. One community scores 1 - gamma; the two triangles
+  # 6 / 6.1 - gamma / 2. So below gamma = 2 * (1 - 6 / 6.1) = 0.033 one
+  # community wins (gamma = 0.01: 0.990 against 0.979), at the default the
+  # triangles, and at gamma = 10 every node alone (joining two nodes of a
+  # triangle gains 1 / 6.1 = 0.16 but costs 10 * 2 * 2 * 2 / 12.2^2 = 0.54).
+  net <- net_from_adjacency(two_triangles())
+  for (method in c("leiden", "louvain")) {
+    n_comm <- function(res) {
+      detect_communities(net, method = method, seed = 1L, resolution = res)[["n_communities"]]
+    }
+    expect_identical(n_comm(0.01), 1L)
+    expect_identical(n_comm(1), 2L)
+    expect_identical(n_comm(10), 6L)
+  }
 })
 
 test_that("R-only: modularity_q raises on NA community labels", {
