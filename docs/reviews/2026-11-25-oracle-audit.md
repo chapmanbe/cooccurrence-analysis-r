@@ -137,8 +137,8 @@ None.
 | test-network-stratification.R | 161 | shared fixture | by construction |
 | test-network-stratification.R | 192 | 3 groups | by construction |
 | test-network-stratification.R | 221 | plot_network_comparison panels | gray70 = #B3B3B3 |
-| test-network-stratification.R | 253 | draws as Julia: alpha, colour | Wong (2011) palette, spec values |
-| test-network-stratification.R | 268 | wong colours | Wong (2011) published palette |
+| test-network-stratification.R | 253 | draws as Julia: alpha, color | Wong (2011) palette, spec values |
+| test-network-stratification.R | 268 | wong colors | Wong (2011) published palette |
 | test-network.R | 7 | phi_coefficient | closed form |
 | test-network.R | 24 | columns, order, rounding | closed form from counts |
 | test-network.R | 51 | vertices, weights, prevalence | fixture arithmetic |

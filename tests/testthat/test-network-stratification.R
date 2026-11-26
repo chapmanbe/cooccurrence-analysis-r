@@ -224,10 +224,10 @@ test_that("plot_network_comparison takes two named networks (R)", {
                                      seed = 1L)
   p <- plot_network_comparison(res)
   expect_s3_class(p[["plot"]], "ggplot")
-  # Read back from the built plot: panel order and edge colour as drawn.
+  # Read back from the built plot: panel order and edge color as drawn.
   expect_identical(p[["panels"]][["group"]], c("A", "B"))
   expect_identical(p[["panels"]][["panel"]], 1:2)
-  expect_identical(p[["panels"]][["edge_colour"]], c("#B3B3B3", "#B3B3B3"))
+  expect_identical(p[["panels"]][["edge_color"]], c("#B3B3B3", "#B3B3B3"))
   rev_p <- plot_network_comparison(res[c("B", "A")])
   expect_identical(rev_p[["panels"]][["group"]], c("B", "A"))
   expect_identical(rev_p[["panels"]][["panel"]], 1:2)
@@ -254,7 +254,7 @@ two_triangle_stratum <- function() {
   list(network = net, communities = detect_communities(net, seed = 1L))
 }
 
-test_that("plot_network_comparison draws as Julia: edge alpha, node colour by community (R)", {
+test_that("plot_network_comparison draws as Julia: edge alpha, node color by community (R)", {
   s <- two_triangle_stratum()
   expect_identical(s[["communities"]][["n_communities"]], 2L)
   p <- plot_network_comparison(list(A = s, B = s))[["plot"]]
@@ -269,7 +269,7 @@ test_that("plot_network_comparison draws as Julia: edge alpha, node colour by co
   expect_length(unique(pts[["colour"]]), 2L)
 })
 
-test_that("community colours recycle Makie's seven wong colours by label (R)", {
+test_that("community colors recycle Makie's seven wong colors by label (R)", {
   expect_identical(CooccurrenceAnalysis:::.community_palette,
                    c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00",
                      "#F0E442"))

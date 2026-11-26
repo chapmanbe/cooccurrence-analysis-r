@@ -154,7 +154,11 @@ Cleanups 7, 8 and 10 **done 2026-11-25**:
   `stratified_network_analysis` and the duplicate in `hdp_clustering`. Every entry point now
   raises the same messages; a new test in `test-validation.R` pins them.
 
-Cleanup 9 waits on the `edge_colour` decision.
+Cleanup 9 **done 2026-11-25**: Brian chose American English throughout. The exported column
+`edge_colour` is now `edge_color` (this breaks callers that read it), and the ggplot2 calls
+use `color =` and `scale_color_*`. Only ggplot2's own built-data column `colour` and its
+`labeller` argument keep their spelling. A test in `test-package-metadata.R` now fails on
+British spellings in `R/` and `tests/`.
 
 ### Assessment after the merge
 The two models agree on every bug Claude found, and Gemini adds two more that were

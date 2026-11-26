@@ -131,14 +131,14 @@ plot_centrality_barchart <- function(metrics, centrality = "strength", top_n = 2
 #' result gets its sorted order, and one wanting another order reorders by
 #' name (`strata[c("B", "A")]`), never by position. Drawn as the Julia
 #' reference draws it: each panel laid out on its own (here Kamada-Kawai on
-#' the unweighted topology), node area by prevalence, node colour by the
+#' the unweighted topology), node area by prevalence, node color by the
 #' group's own communities, edges gray (`gray70`, alpha 0.6) with width by
-#' weight rescaled within the panel. No element carries a per-group colour.
+#' weight rescaled within the panel. No element carries a per-group color.
 #' An empty network gets an empty panel.
 #'
 #' Returns a list: `plot` (the ggplot) and `panels`, one row per panel read
 #' back from `ggplot2::ggplot_build()` of that plot -- `group`, `panel`
-#' (1 = left) and `edge_colour` (hex, `NA` for a panel without edges) -- so
+#' (1 = left) and `edge_color` (hex, `NA` for a panel without edges) -- so
 #' a caller records what the figure draws, not what was asked for.
 #' @export
 plot_network_comparison <- function(strata, item_label = "items") {
@@ -215,12 +215,12 @@ plot_network_comparison <- function(strata, item_label = "items") {
   list(plot = p, panels = .drawn_panels(p))
 }
 
-#' Panel order and edge colour as the built plot draws them
+#' Panel order and edge color as the built plot draws them
 #'
 #' Reads `ggplot2::ggplot_build(p)`: the facet layout gives each group's
 #' column (the plot is one row), and the segment layer's built data give the
-#' colour each panel's edges are drawn in, as hex. Raises if a panel's edges
-#' are drawn in more than one colour, or if the plot has no single facet
+#' color each panel's edges are drawn in, as hex. Raises if a panel's edges
+#' are drawn in more than one color, or if the plot has no single facet
 #' column named `group` or no single segment layer.
 #' @keywords internal
 .drawn_panels <- function(p) {
@@ -233,12 +233,12 @@ plot_network_comparison <- function(strata, item_label = "items") {
                        logical(1))
   if (sum(is_segment) != 1L) stop("expected exactly one segment layer", call. = FALSE)
   seg <- built[["data"]][[which(is_segment)]]
-  edge_colour <- vapply(seq_len(nrow(layout)), function(i) {
+  edge_color <- vapply(seq_len(nrow(layout)), function(i) {
     in_panel <- as.integer(seg[["PANEL"]]) == as.integer(layout[["PANEL"]][[i]])
     cols <- unique(seg[["colour"]][in_panel])
     if (length(cols) == 0L) return(NA_character_)
     if (length(cols) > 1L) {
-      stop(sprintf("panel '%s' draws edges in more than one colour", layout[["group"]][[i]]),
+      stop(sprintf("panel '%s' draws edges in more than one color", layout[["group"]][[i]]),
            call. = FALSE)
     }
     rgb <- grDevices::col2rgb(cols)
@@ -246,7 +246,7 @@ plot_network_comparison <- function(strata, item_label = "items") {
   }, character(1))
   out <- data.frame(group = as.character(layout[["group"]]),
                     panel = as.integer(layout[["COL"]]),
-                    edge_colour = edge_colour)
+                    edge_color = edge_color)
   out <- out[order(out[["panel"]]), , drop = FALSE]
   rownames(out) <- NULL
   out

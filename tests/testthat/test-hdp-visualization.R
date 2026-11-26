@@ -74,7 +74,7 @@ test_that("R-only: the butterfly puts each group on the side named for it", {
   h <- res[["hdp"]]
   a_rows <- ab[ab[["group"]] == "A", ]
   expect_equal(a_rows[["pi"]], h[["pi_mean"]][1L, a_rows[["cluster"]]])
-  # Colour follows the category, not the side.
+  # Color follows the category, not the side.
   expect_identical(ab[["fill"]][order(ab[["group"]], ab[["cluster"]])],
                    ba[["fill"]][order(ba[["group"]], ba[["cluster"]])])
 })

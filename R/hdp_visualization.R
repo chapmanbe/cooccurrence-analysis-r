@@ -84,7 +84,7 @@ plot_hdp_stick_weights <- function(result, beta_threshold = 0.01) {
 
 #' Heatmap of posterior mean theta for the active clusters
 #'
-#' Rows: active clusters (`beta > beta_threshold`), labelled with category
+#' Rows: active clusters (`beta > beta_threshold`), labeled with category
 #' and global weight, the heaviest at the bottom as in the reference.
 #' Columns: items whose theta reaches `prob_threshold` in some active
 #' cluster, grouped by the cluster where they peak. Cells with theta >= 0.15
@@ -108,12 +108,12 @@ plot_hdp_class_profiles <- function(result, beta_threshold = 0.01, prob_threshol
                    item = factor(rep(items, each = length(active)), levels = items),
                    theta = as.vector(theta[, cols, drop = FALSE]))
   df[["label"]] <- ifelse(df[["theta"]] >= 0.15, format(round_digits(df[["theta"]], 2)), "")
-  df[["text_colour"]] <- ifelse(df[["theta"]] > 0.6, "white", "black")
+  df[["text_color"]] <- ifelse(df[["theta"]] > 0.6, "white", "black")
   ggplot2::ggplot(df, ggplot2::aes(x = .data$item, y = .data$row)) +
     ggplot2::geom_tile(ggplot2::aes(fill = .data$theta)) +
-    ggplot2::geom_text(ggplot2::aes(label = .data$label, colour = .data$text_colour),
+    ggplot2::geom_text(ggplot2::aes(label = .data$label, color = .data$text_color),
                        size = 2.2) +
-    ggplot2::scale_colour_identity() +
+    ggplot2::scale_color_identity() +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1, limits = c(0, 1),
                                   name = "E_q[θ[k,d]]") +
     ggplot2::scale_y_continuous(breaks = seq_along(active), labels = row_labels,
@@ -126,7 +126,7 @@ plot_hdp_class_profiles <- function(result, beta_threshold = 0.01, prob_threshol
 
 #' Cluster-by-group heatmap of the per-group mixing weights
 #'
-#' Rows: active clusters (`beta > beta_threshold`) labelled with their three
+#' Rows: active clusters (`beta > beta_threshold`) labeled with their three
 #' highest-theta items and their category; columns: groups in
 #' `group_labels` order. Cell text is `pi[j, k]` to 3 places. Raises if no
 #' cluster is active.
@@ -148,11 +148,11 @@ plot_hdp_sharing_heatmap <- function(result, beta_threshold = 0.01, group_label 
                    group = factor(rep(labels, times = length(active)), levels = labels),
                    pi = as.vector(pi_act))
   df[["label"]] <- format(round_digits(df[["pi"]], 3))
-  df[["text_colour"]] <- ifelse(df[["pi"]] > 0.3 * max(pi_act), "white", "black")
+  df[["text_color"]] <- ifelse(df[["pi"]] > 0.3 * max(pi_act), "white", "black")
   ggplot2::ggplot(df, ggplot2::aes(x = .data$group, y = .data$row)) +
     ggplot2::geom_tile(ggplot2::aes(fill = .data$pi)) +
-    ggplot2::geom_text(ggplot2::aes(label = .data$label, colour = .data$text_colour), size = 3) +
-    ggplot2::scale_colour_identity() +
+    ggplot2::geom_text(ggplot2::aes(label = .data$label, color = .data$text_color), size = 3) +
+    ggplot2::scale_color_identity() +
     ggplot2::scale_fill_distiller(palette = "YlOrRd", direction = 1, limits = c(0, top),
                                   name = "π[j,k]") +
     ggplot2::scale_y_continuous(breaks = seq_along(active), labels = row_labels,
@@ -168,7 +168,7 @@ plot_hdp_sharing_heatmap <- function(result, beta_threshold = 0.01, group_label 
 #' `left`'s weight `pi` extends left and `right`'s extends right; clusters
 #' run top to bottom by global weight. `left` and `right` are group *names*,
 #' required, and must be the result's two groups: nothing here falls back to
-#' a position. Bars are coloured by category: universal blue, the first
+#' a position. Bars are colored by category: universal blue, the first
 #' group's (in `group_labels` order) only-cluster orange, the second's
 #' green, both-present-but-unequal reddish purple, negligible gray.
 #'
@@ -200,7 +200,7 @@ plot_hdp_cluster_butterfly <- function(result, left, right, beta_threshold = 0.0
   cat_fill[[paste0("group_", tolower(labels[[1L]]), "_only")]] <- pal[[2L]]
   cat_fill[[paste0("group_", tolower(labels[[2L]]), "_only")]] <- pal[[3L]]
   fill <- unname(cat_fill[cats[active]])
-  if (anyNA(fill)) stop("a cluster category has no colour", call. = FALSE)
+  if (anyNA(fill)) stop("a cluster category has no color", call. = FALSE)
 
   ys <- rev(seq_along(active))   # the heaviest cluster at the top
   pi_of <- function(g) hdp[["pi_mean"]][match(g, labels), active]
@@ -215,8 +215,8 @@ plot_hdp_cluster_butterfly <- function(result, left, right, beta_threshold = 0.0
     ggplot2::geom_rect(ggplot2::aes(xmin = pmin(0, .data$x), xmax = pmax(0, .data$x),
                                     ymin = .data$y - 0.4, ymax = .data$y + 0.4,
                                     fill = .data$fill),
-                       alpha = 0.85, colour = "black", linewidth = 0.2) +
-    ggplot2::geom_vline(xintercept = 0, colour = "black") +
+                       alpha = 0.85, color = "black", linewidth = 0.2) +
+    ggplot2::geom_vline(xintercept = 0, color = "black") +
     ggplot2::annotate("text", x = -xmax * 0.95, y = length(active) + 0.6, label = left,
                       hjust = 0, fontface = "bold") +
     ggplot2::annotate("text", x = xmax * 0.95, y = length(active) + 0.6, label = right,
