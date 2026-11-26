@@ -66,10 +66,22 @@ test_that("build_cooccurrence_network: vertices, weights, prevalence (R)", {
 test_that("cooccurrence_network_from_edge_data rebuilds the same network (R)", {
   net <- build_cooccurrence_network(event_df, weight_metric = "phi", min_count = 2L, alpha = 0.5)
   again <- cooccurrence_network_from_edge_data(net[["edge_data"]], net[["prevalence"]],
-                                               net[["n_records"]], "phi", 2L, 0.5)
+                                               net[["n_records"]], "phi", 2L, 0.5,
+                                               test = "fisher", correction = "bh")
   expect_identical(again, net)
   expect_error(cooccurrence_network_from_edge_data(net[["edge_data"]], integer(0), 50L,
-                                                   "phi", 2L, 0.5), "prevalence")
+                                                   "phi", 2L, 0.5, test = "fisher",
+                                                   correction = "bh"), "prevalence")
+  expect_error(cooccurrence_network_from_edge_data(net[["edge_data"]], net[["prevalence"]],
+                                                   50L, "phi", 2L, 0.5, test = "fisher",
+                                                   correction = "BH"), "correction")
+})
+
+test_that("R-only: the network records the test and correction that produced it", {
+  net <- build_cooccurrence_network(event_df, min_count = 2L, alpha = 0.5, test = "chisq",
+                                    correction = "holm")
+  expect_identical(net[["test"]], "chisq")
+  expect_identical(net[["correction"]], "holm")
 })
 
 test_that("detect_communities: leiden and louvain", {

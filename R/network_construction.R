@@ -113,6 +113,19 @@ bh_adjust <- function(p) .adjust_p(p, "bh", "bh_adjust")
   }
 }
 
+#' Raise unless the event table has an NA-free group column `group_col`
+#' @keywords internal
+.check_group_col <- function(event_df, group_col) {
+  if (!(group_col %in% names(event_df))) {
+    stop(sprintf("event table has no '%s' column (columns: %s)", group_col,
+                 paste(names(event_df), collapse = ", ")), call. = FALSE)
+  }
+  if (anyNA(event_df[[group_col]])) {
+    stop(sprintf("group column '%s' contains NA; every event needs a group", group_col),
+         call. = FALSE)
+  }
+}
+
 #' Record-level counts behind every pairwise statistic
 #'
 #' Returns `items` (sorted, C-locale), `n_item` (records holding each item,
@@ -122,17 +135,10 @@ bh_adjust <- function(p) .adjust_p(p, "bh", "bh_adjust")
 #' every count.
 #' @keywords internal
 .record_counts <- function(event_df) {
-  .check_events(event_df)
-  item_chr <- as.character(event_df[["item"]])
-  items <- .sort_c(unique(item_chr))
-  k <- length(items)
-  code <- match(item_chr, items)
-  ids <- event_df[["id"]]
-  unique_ids <- unique(ids)
-  rec <- match(ids, unique_ids)
-  n_records <- length(unique_ids)
-
-  inc <- .incidence(rec, code, n_records, k)
+  incidence <- .event_incidence(event_df)
+  items <- incidence[["items"]]
+  inc <- incidence[["inc"]]
+  n_records <- nrow(inc)
   n_item <- as.integer(Matrix::colSums(inc))
 
   # X'X counts the records holding each pair; keep the upper triangle only.
@@ -249,7 +255,8 @@ compute_pairwise_associations <- function(event_df, test = "fisher", correction 
 #' Returns a `cooccurrence_network`: `items`, `adjacency` (symmetric weight
 #' matrix, zero where there is no edge), `edge_data` (every tested pair, see
 #' [compute_pairwise_associations()]), `prevalence` (records holding each
-#' vertex item, named), `n_records`, and the parameters that produced it.
+#' vertex item, named), `n_records`, and the parameters that produced it
+#' (`weight_metric`, `min_count`, `alpha`, `test`, `correction`).
 #' @export
 build_cooccurrence_network <- function(event_df, weight_metric = "lift", min_count = 30L,
                                        alpha = 0.05, test = "fisher", correction = "bh",
@@ -262,7 +269,8 @@ build_cooccurrence_network <- function(event_df, weight_metric = "lift", min_cou
   cooccurrence_network_from_edge_data(edge_data, prevalence = prevalence,
                                       n_records = counts[["n_records"]],
                                       weight_metric = weight_metric,
-                                      min_count = min_count, alpha = alpha)
+                                      min_count = min_count, alpha = alpha, test = test,
+                                      correction = correction)
 }
 
 #' Rebuild a co-occurrence network from its pairwise table
@@ -270,11 +278,15 @@ build_cooccurrence_network <- function(event_df, weight_metric = "lift", min_cou
 #' The graph is a pure function of `edge_data` and the filter parameters, so
 #' a network written to disk as tables can be reconstructed exactly.
 #' `prevalence` is a named integer vector covering at least every vertex
-#' item; a vertex missing from it raises.
+#' item; a vertex missing from it raises. `test` and `correction` are the
+#' ones that produced `edge_data`'s p-values, which the table itself does
+#' not record; they are stored on the network, not reapplied.
 #' @export
 cooccurrence_network_from_edge_data <- function(edge_data, prevalence, n_records,
-                                                weight_metric, min_count, alpha) {
+                                                weight_metric, min_count, alpha, test,
+                                                correction) {
   .check_choice(weight_metric, c("lift", "phi"), "weight_metric")
+  .check_options(test, correction, "all")
   stopifnot(length(min_count) == 1L, length(alpha) == 1L, length(n_records) == 1L)
   sig <- edge_data[["observed"]] >= min_count &
     edge_data[["p_adjusted"]] < alpha &
@@ -308,7 +320,9 @@ cooccurrence_network_from_edge_data <- function(edge_data, prevalence, n_records
     n_records = as.integer(n_records),
     weight_metric = weight_metric,
     min_count = min_count,
-    alpha = alpha
+    alpha = alpha,
+    test = test,
+    correction = correction
   ), class = "cooccurrence_network")
 }
 

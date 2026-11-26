@@ -206,3 +206,24 @@ test_that("network_integration", {
                                     stratify_by_group = TRUE), "compare_networks")
   expect_error(run_network_pipeline(event_df, min_count = 2L, alpha = 0.5), "compare_networks")
 })
+
+test_that("R-only: every event-table entry point raises the same check messages", {
+  ev <- make_test_event_df()
+  no_id <- ev[, c("item", "Group")]
+  na_item <- transform(ev, item = replace(item, 1L, NA))
+  entry <- list(
+    pairs = function(d) compute_pairwise_associations(d),
+    itemsets = function(d) mine_frequent_itemsets(d, min_count = 2L),
+    matrix = function(d) record_item_matrix(d),
+    hdp = function(d) hdp_clustering(d, k_max = 3L, n_init = 1L)
+  )
+  for (f in entry) {
+    expect_error(f(no_id), "event table has no 'id' column")
+    expect_error(f(na_item), "event table column 'item' contains NA")
+  }
+  na_group <- transform(ev, Group = replace(Group, 1L, NA))
+  for (f in entry[c("matrix", "hdp")]) {
+    expect_error(f(ev[, c("id", "item")]), "event table has no 'Group' column")
+    expect_error(f(na_group), "group column 'Group' contains NA")
+  }
+})

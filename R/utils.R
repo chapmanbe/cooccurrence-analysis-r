@@ -41,6 +41,40 @@ round_digits <- function(x, digits) {
   Matrix::sparseMatrix(i = rec[keep], j = code[keep], x = 1, dims = c(n_rec, n_item))
 }
 
+#' Sparse incidence matrix of an event table
+#'
+#' Checks the table ([.check_events()]), then returns `inc` (see
+#' [.incidence()]) and `items`, its columns in C-locale order. `rec` gives
+#' each event's record (`1..n_rec`); by default records are the ids, in order
+#' of first appearance.
+#' @keywords internal
+.event_incidence <- function(event_df, rec = NULL, n_rec = NULL) {
+  .check_events(event_df)
+  if (is.null(rec)) {
+    ids <- event_df[["id"]]
+    rec <- match(ids, unique(ids))
+  }
+  if (is.null(n_rec)) n_rec <- max(c(0L, rec))
+  item_chr <- as.character(event_df[["item"]])
+  items <- .sort_c(unique(item_chr))
+  list(inc = .incidence(rec, match(item_chr, items), n_rec, length(items)), items = items)
+}
+
+#' Logical matrix of the records holding at least `min_items` items
+#'
+#' From an [.event_incidence()] result: rows the kept records, columns the
+#' items they hold. Returns `x` and `kept`, the kept rows of `inc`.
+#' @keywords internal
+.multi_item_matrix <- function(incidence, min_items) {
+  inc <- incidence[["inc"]]
+  kept <- which(Matrix::rowSums(inc) >= min_items)
+  inc <- inc[kept, , drop = FALSE]
+  held <- which(Matrix::colSums(inc) > 0)
+  x <- as.matrix(inc[, held, drop = FALSE]) > 0
+  dimnames(x) <- list(NULL, incidence[["items"]][held])
+  list(x = x, kept = kept)
+}
+
 #' Sort character values by byte (C-locale) order, whatever the session locale
 #' @keywords internal
 .sort_c <- function(x) sort(x, method = "radix")

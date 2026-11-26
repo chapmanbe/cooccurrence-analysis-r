@@ -106,16 +106,8 @@ stratified_network_analysis <- function(event_df, exclusive_items, group_col = "
   .check_options(test, correction, timing_filter)
   # Before the exclusion drops any event, so an NA on a dropped one raises too.
   .check_events(event_df)
-  if (!(group_col %in% names(event_df))) {
-    stop(sprintf("event table has no '%s' column (columns: %s)", group_col,
-                 paste(names(event_df), collapse = ", ")), call. = FALSE)
-  }
-  g <- event_df[[group_col]]
-  if (anyNA(g)) {
-    stop(sprintf("group column '%s' contains NA; every event needs a group", group_col),
-         call. = FALSE)
-  }
-  g <- as.character(g)
+  .check_group_col(event_df, group_col)
+  g <- as.character(event_df[[group_col]])
   groups <- .sort_c(unique(g))
   items_chr <- as.character(event_df[["item"]])
   exclusive_items <- .check_exclusive_items(exclusive_items, groups,

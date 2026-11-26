@@ -1,25 +1,15 @@
 # Frequent itemsets and association rules. R port of the Julia reference's
-# mining.jl. Enumeration is delegated to arules (Borgelt's Apriori); counts,
-# thresholds and metrics are computed here from the incidence matrix, so they
-# follow the reference's definitions exactly rather than arules' floating-point
-# thresholds.
+# mining.jl. Enumeration and record counts are delegated to arules (Borgelt's
+# Apriori); thresholds and metrics are applied here to arules' integer counts,
+# so they follow the reference's definitions exactly rather than arules'
+# floating-point thresholds.
 
 #' Records x items logical matrix for mining: one row per record (`id`)
 #' holding at least `min_items` distinct items, columns the items those
 #' records hold (C-locale order). The reference's `build_transactions`.
 #' @keywords internal
 .transactions <- function(event_df, min_items) {
-  .check_events(event_df)
-  item_chr <- as.character(event_df[["item"]])
-  items <- .sort_c(unique(item_chr))
-  ids <- event_df[["id"]]
-  uid <- unique(ids)
-  inc <- .incidence(match(ids, uid), match(item_chr, items), length(uid), length(items))
-  inc <- inc[Matrix::rowSums(inc) >= min_items, , drop = FALSE]
-  held <- which(Matrix::colSums(inc) > 0)
-  x <- as.matrix(inc[, held, drop = FALSE]) > 0
-  dimnames(x) <- list(NULL, items[held])
-  x
+  .multi_item_matrix(.event_incidence(event_df), min_items)[["x"]]
 }
 
 #' Minimum record count for a support threshold. `min_count`, when given, is
@@ -59,19 +49,13 @@
   }
 }
 
-# Records holding every item of each itemset (a list of character vectors).
-.itemset_counts <- function(x, itemsets) {
-  vapply(itemsets, function(s) sum(rowSums(x[, s, drop = FALSE]) == length(s)), integer(1L))
-}
-
 # Run arules::apriori with the support threshold half a record below `min_n`,
 # so every itemset with at least `min_n` records is enumerated whatever
 # rounding arules applies; callers then filter on exact counts. `maxtime = 0`
 # lifts arules' default 5-second limit, and any warning (a truncated search
 # among them) raises, so a partial result is never returned as complete.
-.apriori <- function(x, min_n, parameter) {
-  trans <- methods::as(x, "transactions")
-  parameter[["support"]] <- (min_n - 0.5) / nrow(x)
+.apriori <- function(trans, min_n, parameter) {
+  parameter[["support"]] <- (min_n - 0.5) / length(trans)
   parameter[["maxtime"]] <- 0
   withCallingHandlers(
     arules::apriori(trans, parameter = parameter, control = list(verbose = FALSE)),
@@ -109,11 +93,12 @@ mine_frequent_itemsets <- function(event_df, min_support = 0.005, min_count = NU
   min_n <- .min_n(min_support, min_count, nrow(x))
   # No itemset is held by more records than there are.
   if (min_n > nrow(x)) return(empty)
-  found <- .apriori(x, min_n, list(minlen = 2L, maxlen = as.integer(max_length),
-                                   target = "frequent itemsets"))
+  found <- .apriori(methods::as(x, "transactions"), min_n,
+                    list(minlen = 2L, maxlen = as.integer(max_length),
+                         target = "frequent itemsets"))
   sets <- lapply(arules::LIST(arules::items(found), decode = TRUE), .sort_c)
   if (length(sets) == 0L) return(empty)
-  n_hold <- .itemset_counts(x, sets)
+  n_hold <- arules::quality(found)[["count"]]
   keep <- n_hold >= min_n
   sets <- sets[keep]
   n_hold <- n_hold[keep]
@@ -161,13 +146,15 @@ mine_association_rules <- function(event_df, min_support = 0.005, min_confidence
   min_n <- .min_n(min_support, min_count, n)
   if (min_n > n) return(empty)
   # Confidence is filtered exactly below; arules gets a threshold just under it.
-  found <- .apriori(x, min_n, list(confidence = max(0, min_confidence - 1e-9), minlen = 2L,
-                                   maxlen = as.integer(max_length), target = "rules"))
+  trans <- methods::as(x, "transactions")
+  found <- .apriori(trans, min_n, list(confidence = max(0, min_confidence - 1e-9),
+                                       minlen = 2L, maxlen = as.integer(max_length),
+                                       target = "rules"))
   if (length(found) == 0L) return(empty)
   lhs <- lapply(arules::LIST(arules::lhs(found), decode = TRUE), .sort_c)
   rhs <- vapply(arules::LIST(arules::rhs(found), decode = TRUE), `[[`, character(1L), 1L)
-  n_both <- .itemset_counts(x, Map(c, lhs, rhs))
-  cov <- .itemset_counts(x, lhs)
+  n_both <- arules::quality(found)[["count"]]
+  cov <- arules::support(arules::lhs(found), trans, type = "absolute")
   n_rhs <- as.integer(colSums(x)[rhs])
   conf <- n_both / cov
   keep <- n_both >= min_n & conf >= min_confidence

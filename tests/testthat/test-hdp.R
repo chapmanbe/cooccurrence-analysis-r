@@ -206,7 +206,7 @@ test_that("timing_filter propagates", {
 
 test_that("error on unknown group_by column", {
   expect_error(hdp_clustering(make_test_event_df(), group_col = "NoSuchColumn"),
-               "NoSuchColumn not found")
+               "event table has no 'NoSuchColumn' column")
 })
 
 test_that("CAVI runs past the plateau window and separates blocks (C9 regression)", {

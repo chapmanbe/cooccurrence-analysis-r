@@ -142,6 +142,20 @@ Cleanups 7–10 above: test and correction missing from the network object, the 
 itemset recount, British spellings and `edge_colour`, and the three copies of the incidence
 code.
 
+Cleanups 7, 8 and 10 **done 2026-11-25**:
+- **7:** the network stores `test` and `correction`. `cooccurrence_network_from_edge_data()`
+  now requires both, since `edge_data` does not record them and the rebuild must stay exact.
+  This breaks existing calls to it.
+- **8:** itemset and rule counts come from arules (`quality()$count`, and
+  `support(type = "absolute")` for rule left-hand sides). Adding 1 to any of the three
+  fails between 3 and 11 mining tests.
+- **10:** `.event_incidence()` and `.multi_item_matrix()` in `utils.R` replace the three
+  copies, and `.check_group_col()` replaces the group checks in `record_item_matrix` and
+  `stratified_network_analysis` and the duplicate in `hdp_clustering`. Every entry point now
+  raises the same messages; a new test in `test-validation.R` pins them.
+
+Cleanup 9 waits on the `edge_colour` decision.
+
 ### Assessment after the merge
 The two models agree on every bug Claude found, and Gemini adds two more that were
 reproduced (G1, G2) and several silent-failure gaps of the same kind (G3–G8). No finding

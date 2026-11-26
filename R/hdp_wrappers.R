@@ -14,15 +14,8 @@
 #' `NA` in `id`, `item` or the group column.
 #' @export
 record_item_matrix <- function(event_df, group_col = "Group", min_items = 2L) {
-  for (col in c("id", "item", group_col)) {
-    if (!(col %in% names(event_df))) {
-      stop(sprintf("Column %s not found in event_df", col), call. = FALSE)
-    }
-    if (anyNA(event_df[[col]])) {
-      stop(sprintf("event_df column '%s' contains NA; every event needs one", col),
-           call. = FALSE)
-    }
-  }
+  .check_events(event_df)
+  .check_group_col(event_df, group_col)
   grp_chr <- as.character(event_df[[group_col]])
   group_labels <- .sort_c(unique(grp_chr))
   if (length(group_labels) == 0L) stop(sprintf("No groups found in column %s", group_col),
@@ -31,7 +24,6 @@ record_item_matrix <- function(event_df, group_col = "Group", min_items = 2L) {
   ids <- event_df[["id"]]
   uid <- unique(ids)
   id_code <- match(ids, uid)
-  item_chr <- as.character(event_df[["item"]])
 
   # A record is (group, id). Rows: group-major, then first appearance.
   rec_key <- (g - 1) * length(uid) + id_code
@@ -39,21 +31,14 @@ record_item_matrix <- function(event_df, group_col = "Group", min_items = 2L) {
   rec_levels <- rec_levels[order(ceiling(rec_levels / length(uid)), method = "radix")]
   rec <- match(rec_key, rec_levels)
 
-  items_all <- .sort_c(unique(item_chr))
-  code <- match(item_chr, items_all)
-  inc <- .incidence(rec, code, length(rec_levels), length(items_all))
-  kept_rec <- which(Matrix::rowSums(inc) >= min_items)
+  m <- .multi_item_matrix(.event_incidence(event_df, rec, length(rec_levels)), min_items)
+  kept_rec <- m[["kept"]]
   if (length(kept_rec) == 0L) {
     return(list(x = matrix(FALSE, 0L, 0L), ids = ids[0L], group = integer(0),
                 group_labels = group_labels))
   }
-  inc <- inc[kept_rec, , drop = FALSE]
-  held <- which(Matrix::colSums(inc) > 0)
-  x <- as.matrix(inc[, held, drop = FALSE]) > 0
-  dimnames(x) <- list(NULL, items_all[held])
-
   first_event <- match(kept_rec, rec)
-  list(x = x, ids = ids[first_event], group = g[first_event], group_labels = group_labels)
+  list(x = m[["x"]], ids = ids[first_event], group = g[first_event], group_labels = group_labels)
 }
 
 #' Fit an HDP Bernoulli mixture jointly across groups
@@ -87,9 +72,6 @@ hdp_clustering <- function(event_df, group_col = "Group", min_items = 2L, k_max 
                            alpha = 1, gamma = 1, prior = "flat", alpha_prior = 1,
                            beta_prior = 1, concentration = 10, floor = 1, max_iter = 300L,
                            tol = 1e-5, n_init = 3L, timing_filter = "all", init = NULL) {
-  if (!(group_col %in% names(event_df))) {
-    stop(sprintf("Column %s not found in event_df", group_col), call. = FALSE)
-  }
   if (!identical(timing_filter, "all")) {
     stop(paste0("timing_filter = '", format(timing_filter), "' exists in the Julia reference ",
                 "but is not ported to R; only 'all' is"), call. = FALSE)
